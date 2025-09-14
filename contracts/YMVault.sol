@@ -454,6 +454,11 @@ contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         // Current underlying balance represented by aTokens (USDC)
         uint256 totalUnderlyingBalance = aToken.balanceOf(address(this));
 
+        // for estimation withdraw
+        if (!isResolved) {
+            totalUnderlyingBalance += (totalWinningDeposits - totalMatched);
+        }
+
         // User's USDC entitlement
         uint256 userUSDCAmount = (totalUnderlyingBalance * userShare) / 1e18;
 

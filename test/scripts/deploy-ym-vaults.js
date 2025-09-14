@@ -17,7 +17,7 @@
 const fs = require("fs");
 const path = require("path");
 const { ethers, network } = require("hardhat");
-const { MARKET, POLYGON, LOCAL_CHAIN_IDS } = require("./config");
+const { MARKET, POLYGON, LOCAL_CHAIN_IDS, TEST } = require("./config");
 
 // Market now provided via config
 
@@ -67,7 +67,17 @@ async function main() {
 
   const { raw: rawMarkets, json: markets } = loadMarkets();
 
-  const deployer = (await ethers.getSigners())[0];
+  // Use private key if configured, otherwise use default signer
+  let deployer;
+  if (TEST.PRIVATE_KEY) {
+    console.log("Using configured private key for deployment");
+    const wallet = new ethers.Wallet(TEST.PRIVATE_KEY, ethers.provider);
+    deployer = wallet;
+  } else {
+    console.log("Using default signer for deployment");
+    deployer = (await ethers.getSigners())[0];
+  }
+
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Network chainId: ${chainId}`);
   console.log(`CTF: ${ctf}`);
