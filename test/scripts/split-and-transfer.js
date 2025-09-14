@@ -44,12 +44,47 @@ const CTF_ABI = [
   "function getPositionId(address collateralToken, bytes32 collectionId) pure returns (uint256)",
   "function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data)",
   "function balanceOf(address account, uint256 id) view returns (uint256)",
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address account, address operator) view returns (bool)",
+];
+
+// ERC1155Receiver interface for checking contract compatibility
+const ERC1155_RECEIVER_ABI = [
+  "function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data) external returns (bytes4)",
+  "function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external returns (bytes4)",
+  "function supportsInterface(bytes4 interfaceId) external view returns (bool)",
 ];
 
 async function impersonate(addr) {
   await network.provider.send("hardhat_impersonateAccount", [addr]);
   await network.provider.send("hardhat_setBalance", [addr, "0x" + ethers.parseEther("10").toString(16)]);
   return await ethers.getSigner(addr);
+}
+
+async function checkERC1155ReceiverSupport(address) {
+  try {
+    const contract = new ethers.Contract(address, ERC1155_RECEIVER_ABI, ethers.provider);
+
+    // Check if contract supports ERC1155Receiver interface
+    // Interface ID for ERC1155Receiver: 0x4e2312e0
+    const interfaceId = "0x4e2312e0";
+    const supportsInterface = await contract.supportsInterface(interfaceId);
+
+    return {
+      isContract: true,
+      supportsERC1155Receiver: supportsInterface,
+      hasOnERC1155Received: true, // We'll check this separately
+      hasOnERC1155BatchReceived: true // We'll check this separately
+    };
+  } catch (error) {
+    return {
+      isContract: true,
+      supportsERC1155Receiver: false,
+      hasOnERC1155Received: false,
+      hasOnERC1155BatchReceived: false,
+      error: error.message
+    };
+  }
 }
 
 async function main() {
@@ -90,6 +125,10 @@ async function main() {
   // Approve CTF to spend USDC and split into YES/NO
   console.log(`Approving USDC to CTF and splitting ${AMOUNT_USDC} USDC into YES/NO...`);
   await (await usdc.connect(actor).approve(CTF, amount)).wait();
+
+  // Set approval for all ERC1155 tokens (required for safeTransferFrom)
+  console.log(`Setting approval for all ERC1155 tokens...`);
+  await (await ctf.connect(actor).setApprovalForAll(actor.address, true)).wait();
   const partition = [1, 2];
   await (
     await ctf
@@ -110,18 +149,168 @@ async function main() {
   console.log(`Actor YES balance: ${ethers.formatUnits(yesBal, 6)}`);
   console.log(`Actor NO  balance: ${ethers.formatUnits(noBal, 6)}`);
 
+  // Debug: Check token balances and addresses
+  console.log(`Actor address: ${actor.address}`);
+  console.log(`YES receiver: ${TEST.YES_RECEIVER}`);
+  console.log(`NO receiver: ${TEST.NO_RECEIVER}`);
+  console.log(`YES tokenId: ${yesId}`);
+  console.log(`NO tokenId: ${noId}`);
+  console.log(`YES balance: ${yesBal}`);
+  console.log(`NO balance: ${noBal}`);
+
+  // Validate addresses
+  if (!ethers.isAddress(TEST.YES_RECEIVER)) {
+    throw new Error(`Invalid YES_RECEIVER address: ${TEST.YES_RECEIVER}`);
+  }
+  if (!ethers.isAddress(TEST.NO_RECEIVER)) {
+    throw new Error(`Invalid NO_RECEIVER address: ${TEST.NO_RECEIVER}`);
+  }
+
+  // Check if target addresses are contracts and their ERC1155Receiver support
+  console.log(`\n🔍 Checking receiver addresses...`);
+
+  const yesReceiverCode = await ethers.provider.getCode(TEST.YES_RECEIVER);
+  const noReceiverCode = await ethers.provider.getCode(TEST.NO_RECEIVER);
+
+  const isYesReceiverContract = yesReceiverCode !== "0x";
+  const isNoReceiverContract = noReceiverCode !== "0x";
+
+  console.log(`YES_RECEIVER (${TEST.YES_RECEIVER}):`);
+  console.log(`  - Is contract: ${isYesReceiverContract}`);
+
+  if (isYesReceiverContract) {
+    const yesReceiverInfo = await checkERC1155ReceiverSupport(TEST.YES_RECEIVER);
+    console.log(`  - Supports ERC1155Receiver: ${yesReceiverInfo.supportsERC1155Receiver}`);
+    if (yesReceiverInfo.error) {
+      console.log(`  - Error checking interface: ${yesReceiverInfo.error}`);
+    }
+
+    if (!yesReceiverInfo.supportsERC1155Receiver) {
+      console.log(`  ⚠️  WARNING: YES_RECEIVER is a contract but doesn't support ERC1155Receiver interface!`);
+      console.log(`  ⚠️  This may cause the transfer to fail.`);
+    }
+  } else {
+    console.log(`  - EOA (Externally Owned Account) - no special handling needed`);
+  }
+
+  console.log(`\nNO_RECEIVER (${TEST.NO_RECEIVER}):`);
+  console.log(`  - Is contract: ${isNoReceiverContract}`);
+
+  if (isNoReceiverContract) {
+    const noReceiverInfo = await checkERC1155ReceiverSupport(TEST.NO_RECEIVER);
+    console.log(`  - Supports ERC1155Receiver: ${noReceiverInfo.supportsERC1155Receiver}`);
+    if (noReceiverInfo.error) {
+      console.log(`  - Error checking interface: ${noReceiverInfo.error}`);
+    }
+
+    if (!noReceiverInfo.supportsERC1155Receiver) {
+      console.log(`  ⚠️  WARNING: NO_RECEIVER is a contract but doesn't support ERC1155Receiver interface!`);
+      console.log(`  ⚠️  This may cause the transfer to fail.`);
+    }
+  } else {
+    console.log(`  - EOA (Externally Owned Account) - no special handling needed`);
+  }
+
+  // Check if balances are valid
+  if (yesBal === 0n) {
+    throw new Error("YES balance is zero, cannot transfer");
+  }
+  if (noBal === 0n) {
+    throw new Error("NO balance is zero, cannot transfer");
+  }
+
+  // Additional balance verification
+  const yesBalCheck = await ctf.balanceOf(actor.address, yesId);
+  const noBalCheck = await ctf.balanceOf(actor.address, noId);
+  console.log(`Balance verification - YES: ${yesBalCheck}, NO: ${noBalCheck}`);
+
+  if (yesBalCheck !== yesBal) {
+    throw new Error(`YES balance mismatch: expected ${yesBal}, got ${yesBalCheck}`);
+  }
+  if (noBalCheck !== noBal) {
+    throw new Error(`NO balance mismatch: expected ${noBal}, got ${noBalCheck}`);
+  }
+
+  // Check if trying to transfer to self
+  if (actor.address.toLowerCase() === TEST.YES_RECEIVER.toLowerCase()) {
+    console.log("⚠️  Warning: YES_RECEIVER is the same as actor address");
+  }
+  if (actor.address.toLowerCase() === TEST.NO_RECEIVER.toLowerCase()) {
+    console.log("⚠️  Warning: NO_RECEIVER is the same as actor address");
+  }
+
+  // Final safety check for contract receivers
+  console.log(`\n🛡️  Final safety checks...`);
+
+  if (isYesReceiverContract) {
+    const yesReceiverInfo = await checkERC1155ReceiverSupport(TEST.YES_RECEIVER);
+    if (!yesReceiverInfo.supportsERC1155Receiver) {
+      console.log(`❌ ERROR: YES_RECEIVER is a contract but doesn't support ERC1155Receiver interface!`);
+      console.log(`❌ This will cause the transfer to fail. Please use a different address or ensure the contract implements ERC1155Receiver.`);
+      throw new Error(`YES_RECEIVER contract doesn't support ERC1155Receiver interface`);
+    }
+  }
+
+  if (isNoReceiverContract) {
+    const noReceiverInfo = await checkERC1155ReceiverSupport(TEST.NO_RECEIVER);
+    if (!noReceiverInfo.supportsERC1155Receiver) {
+      console.log(`❌ ERROR: NO_RECEIVER is a contract but doesn't support ERC1155Receiver interface!`);
+      console.log(`❌ This will cause the transfer to fail. Please use a different address or ensure the contract implements ERC1155Receiver.`);
+      throw new Error(`NO_RECEIVER contract doesn't support ERC1155Receiver interface`);
+    }
+  }
+
+  console.log(`✅ All safety checks passed!`);
+
   // Transfer YES/NO to recipients
-  console.log(`Transferring YES to ${TEST.YES_RECEIVER} and NO to ${TEST.NO_RECEIVER}...`);
-  await (
-    await ctf
+  console.log(`Transferring YES to ${TEST.YES_RECEIVER} and NO to ${TEST.NO_RECEIVER} ...`);
+
+  // Try YES transfer first
+  try {
+    console.log(`Attempting YES transfer: from=${actor.address}, to=${TEST.YES_RECEIVER}, id=${yesId}, amount=${yesBal}`);
+
+    // Double-check balance right before transfer
+    const finalYesBal = await ctf.balanceOf(actor.address, yesId);
+    console.log(`Final YES balance check: ${finalYesBal}`);
+
+    if (finalYesBal < yesBal) {
+      throw new Error(`Insufficient YES balance: have ${finalYesBal}, need ${yesBal}`);
+    }
+
+    const tx = await ctf
       .connect(actor)
-      .safeTransferFrom(actor.address, TEST.YES_RECEIVER, yesId, yesBal, "0x")
-  ).wait();
-  await (
-    await ctf
+      .safeTransferFrom(actor.address, TEST.YES_RECEIVER, yesId, yesBal, "0x");
+    console.log(`YES transfer tx hash: ${tx.hash}`);
+    await tx.wait();
+    console.log(`✅ YES transfer successful`);
+  } catch (error) {
+    console.error(`❌ YES transfer failed:`, error.message);
+    console.error(`Error details:`, error);
+    throw error;
+  }
+
+  try {
+    console.log(`Attempting NO transfer: from=${actor.address}, to=${TEST.NO_RECEIVER}, id=${noId}, amount=${noBal}`);
+
+    // Double-check balance right before transfer
+    const finalNoBal = await ctf.balanceOf(actor.address, noId);
+    console.log(`Final NO balance check: ${finalNoBal}`);
+
+    if (finalNoBal < noBal) {
+      throw new Error(`Insufficient NO balance: have ${finalNoBal}, need ${noBal}`);
+    }
+
+    const tx = await ctf
       .connect(actor)
-      .safeTransferFrom(actor.address, TEST.NO_RECEIVER, noId, noBal, "0x")
-  ).wait();
+      .safeTransferFrom(actor.address, TEST.NO_RECEIVER, noId, noBal, "0x");
+    console.log(`NO transfer tx hash: ${tx.hash}`);
+    await tx.wait();
+    console.log(`✅ NO transfer successful`);
+  } catch (error) {
+    console.error(`❌ NO transfer failed:`, error.message);
+    console.error(`Error details:`, error);
+    throw error;
+  }
 
   console.log(`Done.`);
 }

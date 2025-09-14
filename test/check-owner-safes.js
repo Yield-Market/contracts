@@ -16,7 +16,7 @@
 */
 
 const { ethers, network } = require("hardhat");
-const { LOCAL_CHAIN_IDS } = require("../test/scripts/config");
+const { LOCAL_CHAIN_IDS } = require("./scripts/config");
 const https = require("https");
 
 const SAFE_TS_BASES = {

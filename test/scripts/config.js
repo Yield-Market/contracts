@@ -19,9 +19,9 @@ module.exports = {
   // Test config (set to string addresses or values as needed)
   TEST: {
     USDC_RECEIVER: null,     // if null, first local signer will be used
-    YES_RECEIVER: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",      // if null, first local signer will be used
-    NO_RECEIVER: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",       // if null, first local signer will be used
-    USDC_AMOUNT: "1000",    // default USDC amount for scripts
+    YES_RECEIVER: "0x2b7acd1411ea079eb5edd32806b9e9f957b4ca01",      // if null, first local signer will be used
+    NO_RECEIVER: "0x2b7acd1411ea079eb5edd32806b9e9f957b4ca01",       // if null, first local signer will be used
+    USDC_AMOUNT: "100",    // default USDC amount for scripts
 
     // Defaults for send_position_token.js
     POSITION_SIDE: "YES",   // deprecated (script auto-handles both sides)
@@ -29,15 +29,57 @@ module.exports = {
     PRIVATE_KEY: process.env.TEST_PRIVATE_KEY,        // hex private key for signing txs in scripts (0x...) - loaded from .env file
   },
   // Single market definition used by test scripts
-  MARKET: {
-    id: "will-ethereum-reach-5200-in-september",
-    conditionId: "0xf8a33b3f58a7d0d654956706f5a61d0357b6bdd4ad36d7b4f407ce69ea4d367a",
-    collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-    ymVaultAddress: "0xF2C003B74C0b67E6ad94680Ca14c37e65FC6CC29",
-    yesPositionId: "103876993696082015861066702475715382351460866745353292325352058543913353423996",
-    noPositionId: "66791453988360573698055776507286198215418878555761749237780394013860292613668",
-    yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
-  },
+  // MARKET: {
+  //   id: "btc-above-100k-till-2025-end",
+  //   conditionId: "0xa76a7ecac374e7e37f9dd7eacda947793f23d2886ffe0dc28fcc081a7f61423c",
+  //   questionId: "0x9f2c4f3d3a5e6b1e2c3d4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8", // Optional; used for CTF resolution
+  //   collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  //   ymVaultAddress: "0xac10F0c144D987c5Ef9d30eceF1330323d8e5C47",
+  //   yesPositionId: "38880531420851293294206408195662191626124315938743706007994446557347938404169",
+  //   noPositionId: "8902773313329801867635874809325551791076524253457589174917607919810586320674",
+  //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+  // },
+
+  // Additional markets from frontend config (commented out for reference)
+  // MARKET: {
+  //   id: "ethereum-all-time-high-by-september-30",
+  //   conditionId: "0x20d4f65ffc90fdea0332de4737411388e89d5fd37572d124b42f64427424d01e",
+  //   collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  //   ymVaultAddress: "0x8ffd58163cFB4a4CFABE02dceb2F8f320F257f04",
+  //   yesPositionId: "71287908215328385101243686516545514858979037224060325310874110368820268322602",
+  //   noPositionId: "73577829751434584490325969575598204407858161556711771005899527705770966560534",
+  //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+  // },
+
+  // MARKET: {
+  //   id: "dogecoin-all-time-high-before-2026",
+  //   conditionId: "0x94f3b700e10d974d9b571b6c98e6fb658ce69cbcfcf57f8d54ff800d3a2a0f19",
+  //   collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  //   ymVaultAddress: "0xfc6FCe7bC9BF56b3eCcB059613B0ad6DeA4589A4",
+  //   yesPositionId: "15039659828541293785211004728324821300190016086130262041626710325455209031990",
+  //   noPositionId: "81204160537787845181699193749235809600864273503816425834349855505215440863165",
+  //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+  // },
+
+  // MARKET: {
+  //   id: "will-trump-pardon-changpeng-zhao-by-september-30",
+  //   conditionId: "0x87d40b8131f2720d90235d8fa8e94b3acba8671b5bf94f6a48a3366684220bda",
+  //   collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  //   ymVaultAddress: "0x5EB95143420B3ec603B4d1EC91029a604A44e143",
+  //   yesPositionId: "64198885426011547532599716642543176190216105584458400729471673552804291327648",
+  //   noPositionId: "106791290077455579039045683723549617186440013815866034029690507361228666394818",
+  //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+  // },
+
+  // MARKET: {
+  //   id: "hyperliquid-daily-fees-above-8m-in-2025",
+  //   conditionId: "0x8eff77c559ceb1141d32741d418b923b613b84d5a6e701d22466bb374b20156a",
+  //   collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  //   ymVaultAddress: "0x6eDF5B6Bbf2A3677aC827FA565dcB805c624E2Cc",
+  //   yesPositionId: "97257759985013402617661559388768149128799929108374480474885228293016665796689",
+  //   noPositionId: "88747915775193520968087293930277588686308934898905310163489992909007647305232",
+  //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+  // },
 };
 
 
