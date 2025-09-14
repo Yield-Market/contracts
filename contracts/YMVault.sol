@@ -499,18 +499,44 @@ contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
      * @dev Estimate user's withdrawal USDC amount
      */
     function estimateWithdrawal(address user) external view returns (uint256) {
-        if (!isResolved) return 0;
+        bool result; // true if YES won, false if NO won
+        if (!isResolved) {
+             uint256 yesPayoutNumerator = conditionalTokens.payoutNumerators(
+                conditionId,
+                0
+            );
+            uint256 noPayoutNumerator = conditionalTokens.payoutNumerators(
+                conditionId,
+                1
+            );
+            uint256 payoutDenominator = conditionalTokens.payoutDenominator(
+                conditionId
+            );
+
+            if (payoutDenominator ==0) {
+                return 0; // Market not resolved on Polymarket
+            }
+
+            if (yesPayoutNumerator > noPayoutNumerator) {
+                result = true;
+            } else {
+                result = false;
+            }
+        } else {
+            result = yesWon;
+        }
 
         uint256 yesYBalance = yesYTokens[user];
         uint256 noYBalance = noYTokens[user];
 
-        if (yesWon && yesYBalance > 0) {
+        if (result && yesYBalance > 0) {
             return _calculatePayout(yesYBalance, true);
-        } else if (!yesWon && noYBalance > 0) {
+        } else if (!result && noYBalance > 0) {
             return _calculatePayout(noYBalance, false);
         }
 
         return 0;
+       
     }
 
     // ===== ERC1155 Receiver implementation =====
