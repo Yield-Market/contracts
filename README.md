@@ -1,16 +1,16 @@
-# YPM Contracts
+# YM Contracts
 
-Yield-Enhanced Prediction Market Vaults (YPM). This package contains the core smart contract (`YPMVault.sol`) plus developer scripts and tests to reproduce the vault workflow against a Polygon mainnet fork.
+Yield-Enhanced Prediction Market Vaults (YM). This package contains the core smart contract (`YMVault.sol`) plus developer scripts and tests to reproduce the vault workflow against a Polygon mainnet fork.
 
 ## Contents
 
-- `contracts/YPMVault.sol`: Core vault that accepts Polymarket outcome tokens (YES/NO), internally matches pairs, merges into USDC, supplies to Aave, and pays winners principal + yield.
+- `contracts/YMVault.sol`: Core vault that accepts Polymarket outcome tokens (YES/NO), internally matches pairs, merges into USDC, supplies to Aave, and pays winners principal + yield.
 - `test/`: Unit and integration tests, plus test-only scripts under `test/scripts/` for local-fork workflows.
 - `hardhat.config.js`: Hardhat configuration (viaIR + optimizer, Polygon fork support).
 
 ## Contract Overview
 
-`YPMVault` implements:
+`YMVault` implements:
 
 - ERC1155 Receiver: users can directly `safeTransferFrom` YES/NO position tokens to the vault; the vault credits YES.Y/NO.Y internal balances.
 - Matching & Merge: matches YES/NO equally, merges into USDC via ConditionalTokens, and supplies USDC to Aave to earn yield.
@@ -87,8 +87,8 @@ Shared configuration is centralized in `test/scripts/config.js`:
 Available commands (examples):
 
 ```bash
-# Deploy YPMVault for MARKET
-ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/deploy-ypm-vaults.js --network localhost
+# Deploy YMVault for MARKET
+ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/deploy-ym-vaults.js --network localhost
 
 # Fund a receiver with USDC from a whale
 ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/get-usdc.js --network localhost
@@ -109,7 +109,7 @@ npm run coverage           # solidity-coverage
 npm run typechain          # typechain
 
 # Local-fork helpers (under scripts/)
-npm run deploy:vaults      # deploy YPMVault(s) on localhost
+npm run deploy:vaults      # deploy YMVault(s) on localhost
 npm run yield              # simulate yield (read-only)
 npm run market:resolve     # resolve market + vault (read-only helper)
 npm run get:usdc           # fund receiver with USDC (if present in scripts/)

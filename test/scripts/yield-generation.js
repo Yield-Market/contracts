@@ -1,6 +1,6 @@
 /*
  Core logic extracted from test/07-yield-generation.test.js
- - Reads first non-zero YPMVault address from scripts/markets.json
+ - Reads first non-zero YMVault address from scripts/markets.json
  - Advances time to simulate yield accrual on a Polygon fork
  - Prints vault yield status, aUSDC totals, and simple yield analysis
 
@@ -19,7 +19,7 @@ const POLYGON_ADDRESSES = {
   AUSDC: POLYGON.AUSDC,
 };
 
-const ypmVaultAddress = MARKET.ypmVaultAddress;
+const ymVaultAddress = MARKET.ymVaultAddress;
 
 
 const aTokenABI = [
@@ -35,8 +35,8 @@ function loadVaultAddress() {
   const marketsPath = path.resolve(__dirname, "markets.json");
   const items = JSON.parse(fs.readFileSync(marketsPath, "utf8"));
   for (const m of items) {
-    if (m.ypmVaultAddress && m.ypmVaultAddress !== "0x0000000000000000000000000000000000000000") {
-      return m.ypmVaultAddress;
+    if (m.ymVaultAddress && m.ymVaultAddress !== "0x0000000000000000000000000000000000000000") {
+      return m.ymVaultAddress;
     }
   }
   return null;
@@ -48,11 +48,11 @@ async function main() {
 
   const [deployer, userA, userB, userC] = await ethers.getSigners();
 
-  const ypmVault = await ethers.getContractAt("YPMVault", ypmVaultAddress);
+  const ymVault = await ethers.getContractAt("YMVault", ymVaultAddress);
   const aToken = new ethers.Contract(POLYGON_ADDRESSES.AUSDC, aTokenABI, deployer);
 
   console.log("Using:");
-  console.log(`- YPMVault: ${ypmVaultAddress}`);
+  console.log(`- YMVault: ${ymVaultAddress}`);
   console.log(`- aUSDC:   ${POLYGON_ADDRESSES.AUSDC}`);
 
   // Step 1: Initial yield status
@@ -60,7 +60,7 @@ async function main() {
   const initialTimestamp = initialBlock.timestamp;
   console.log(`\nInitial timestamp: ${initialTimestamp} (${new Date(Number(initialTimestamp) * 1000).toISOString()})`);
 
-  const initialYieldStatus = await ypmVault.getYieldStatus();
+  const initialYieldStatus = await ymVault.getYieldStatus();
   console.log("\nInitial Yield Status:");
   console.log(`- Total aTokens:    ${ethers.formatUnits(initialYieldStatus.totalATokens, 6)}`);
   console.log(`- Total Collateral: ${ethers.formatUnits(initialYieldStatus.totalCollateral, 6)}`);
@@ -78,7 +78,7 @@ async function main() {
   console.log(`Time advanced by: ${(newTimestamp - initialTimestamp) / (24 * 60 * 60)} days`);
 
   // Step 3: Current yield status
-  const yieldStatus = await ypmVault.getYieldStatus();
+  const yieldStatus = await ymVault.getYieldStatus();
   console.log("\nCurrent Yield Status:");
   console.log(`- Total aTokens:    ${ethers.formatUnits(yieldStatus.totalATokens, 6)}`);
   console.log(`- Total Collateral: ${ethers.formatUnits(yieldStatus.totalCollateral, 6)}`);
@@ -93,17 +93,17 @@ async function main() {
   }
 
   try {
-    const vaultATokenBalance = await aToken.balanceOf(ypmVaultAddress);
+    const vaultATokenBalance = await aToken.balanceOf(ymVaultAddress);
     console.log(`Vault aUSDC Balance: ${ethers.formatUnits(vaultATokenBalance, 6)}`);
   } catch (e) {
     console.log(`Warning: could not read vault aUSDC balance: ${e.message}`);
   }
 
   // Step 5: Yield accrual quick analysis
-  const totalYesDeposits = await ypmVault.totalYesDeposits();
-  const totalNoDeposits = await ypmVault.totalNoDeposits();
-  const totalMatched = await ypmVault.totalMatched();
-  const totalYielding = await ypmVault.totalYielding();
+  const totalYesDeposits = await ymVault.totalYesDeposits();
+  const totalNoDeposits = await ymVault.totalNoDeposits();
+  const totalMatched = await ymVault.totalMatched();
+  const totalYielding = await ymVault.totalYielding();
 
   console.log("\nVault State Analysis:");
   console.log(`- Total YES Deposits: ${ethers.formatUnits(totalYesDeposits, 6)}`);

@@ -12,7 +12,7 @@
     "clean": "hardhat clean",
     "coverage": "hardhat coverage",
     "typechain": "hardhat typechain",
-    "deploy:vaults": "hardhat run scripts/deploy-ypm-vaults.js --network localhost",
+    "deploy:vaults": "hardhat run scripts/deploy-ym-vaults.js --network localhost",
     "split-and-transfer": "hardhat run scripts/split-and-transfer.js --network localhost",
     "yield": "hardhat run scripts/yield-generation.js --network localhost",
     "market:resolve": "hardhat run scripts/market-resolution.js --network localhost",

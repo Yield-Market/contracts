@@ -1,8 +1,8 @@
 /*
  Core logic extracted from test/08-market-resolution.test.js
- - Reads first non-zero YPMVault from scripts/markets.json
+ - Reads first non-zero YMVault from scripts/markets.json
  - (Optional) Resolves ConditionalTokens if QUESTION_ID provided (YES wins)
- - Resolves YPMVault and prints final resolution state and vault balances
+ - Resolves YMVault and prints final resolution state and vault balances
 
  Usage (on Polygon fork):
    export POLYGON_RPC_URL="https://rpc.ankr.com/polygon"
@@ -30,7 +30,7 @@ const conditionalTokensABI = [
 ];
 
 async function main() {
-  const ypmVault = MARKET.ypmVaultAddress;
+  const ymVault = MARKET.ymVaultAddress;
   const conditionId = MARKET.conditionId;
   const [deployer, userA, userB, userC] = await ethers.getSigners();
 
@@ -39,11 +39,11 @@ async function main() {
     conditionalTokensABI,
     deployer,
   );
-  const ypm = await ethers.getContractAt("YPMVault", ypmVault);
+  const ym = await ethers.getContractAt("YMVault", ymVault);
 
   console.log("Using:");
   console.log(`- ConditionalTokens: ${POLYGON_ADDRESSES.CTF}`);
-  console.log(`- YPMVault:         ${ypmVault}`);
+  console.log(`- YMVault:         ${ymVault}`);
   console.log(`- Condition ID:     ${conditionId}`);
 
   // Step 1: Resolve CTF (optional)
@@ -110,26 +110,26 @@ async function main() {
     console.log(`Warning reading/resolving CTF: ${e.message}`);
   }
 
-  // Step 2: Resolve YPMVault
+  // Step 2: Resolve YMVault
   // no need to resolve by admin anymore
   /* 
-  const beforeResolved = await ypm.isResolved();
+  const beforeResolved = await ym.isResolved();
   console.log(`Vault isResolved (before): ${beforeResolved}`);
   if (!beforeResolved) {
-    console.log("Resolving YPMVault...");
-    const rtx = await ypm.connect(deployer).resolveMarket();
+    console.log("Resolving YMVault...");
+    const rtx = await ym.connect(deployer).resolveMarket();
     await rtx.wait();
-    console.log("YPMVault resolved.");
+    console.log("YMVault resolved.");
   } else {
-    console.log("YPMVault already resolved.");
+    console.log("YMVault already resolved.");
   }
    */
 
   // Step 3: Print final states
-  const isResolved = await ypm.isResolved();
-  const yesWon = await ypm.yesWon();
-  const payoutRatio = await ypm.finalPayoutRatio();
-  console.log("\nYPMVault Resolution State:");
+  const isResolved = await ym.isResolved();
+  const yesWon = await ym.yesWon();
+  const payoutRatio = await ym.finalPayoutRatio();
+  console.log("\nYMVault Resolution State:");
   console.log(`- Resolved: ${isResolved}`);
   console.log(`- YES Won: ${yesWon}`);
   console.log(`- Final Payout Ratio: ${payoutRatio}`);
@@ -147,10 +147,10 @@ async function main() {
   }
 
   // Step 4: Vault balances summary
-  const totalYesDeposits = await ypm.totalYesDeposits();
-  const totalNoDeposits = await ypm.totalNoDeposits();
-  const totalMatched = await ypm.totalMatched();
-  const totalYielding = await ypm.totalYielding();
+  const totalYesDeposits = await ym.totalYesDeposits();
+  const totalNoDeposits = await ym.totalNoDeposits();
+  const totalMatched = await ym.totalMatched();
+  const totalYielding = await ym.totalYielding();
   console.log("\nVault Balances:");
   console.log(`- Total YES Deposits: ${ethers.formatUnits(totalYesDeposits, 6)}`);
   console.log(`- Total NO Deposits:  ${ethers.formatUnits(totalNoDeposits, 6)}`);

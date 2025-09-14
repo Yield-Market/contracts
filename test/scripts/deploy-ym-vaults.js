@@ -1,5 +1,5 @@
 /*
- Test-only script: deploy YPMVault for MARKET from config.js on a local fork.
+ Test-only script: deploy YMVault for MARKET from config.js on a local fork.
 
  Requirements:
    - ALLOW_TEST_SCRIPTS=true
@@ -11,7 +11,7 @@
  Usage:
    export POLYGON_RPC_URL="https://rpc.ankr.com/polygon"
    npx hardhat node --fork $POLYGON_RPC_URL --chain-id 1337 &
-   ALLOW_TEST_SCRIPTS=true hardhat run test/scripts/deploy-ypm-vaults.js --network localhost
+   ALLOW_TEST_SCRIPTS=true hardhat run test/scripts/deploy-ym-vaults.js --network localhost
 */
 
 const fs = require("fs");
@@ -37,15 +37,15 @@ function loadMarkets() {
   return { raw: null, json: [MARKET] };
 }
 
-// Replace only ypmVaultAddress within the object containing the specific id, preserving whitespace
+// Replace only ymVaultAddress within the object containing the specific id, preserving whitespace
 function replaceVaultAddressPreservingWhitespace(rawText, id, newAddress) {
   const idEsc = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(
-    `("id"\s*:\s*"${idEsc}")([\\\s\S]*?)("ypmVaultAddress"\s*:\s*")0x[0-9a-fA-F]{40}(\")`,
+    `("id"\s*:\s*"${idEsc}")([\\\s\S]*?)("ymVaultAddress"\s*:\s*")0x[0-9a-fA-F]{40}(\")`,
     "m",
   );
   const match = rawText.match(re);
-  if (!match) throw new Error(`Could not locate ypmVaultAddress for id=${id}`);
+  if (!match) throw new Error(`Could not locate ymVaultAddress for id=${id}`);
   const before = rawText.slice(0, match.index);
   const after = rawText.slice(match.index + match[0].length);
   const replaced = `${match[1]}${match[2]}${match[3]}${newAddress}${match[4]}`;
@@ -73,11 +73,11 @@ async function main() {
   console.log(`CTF: ${ctf}`);
   console.log(`aUSDC: ${aToken}`);
 
-  const YPMVaultFactory = await ethers.getContractFactory("YPMVault");
+  const YMVaultFactory = await ethers.getContractFactory("YMVault");
 
   const deployments = [];
   for (const market of markets) {
-    const currentAddr = market.ypmVaultAddress;
+    const currentAddr = market.ymVaultAddress;
 
     const collateralToken = market.collateralToken;
     assertAddress("collateralToken", collateralToken);
@@ -94,7 +94,7 @@ async function main() {
     const yesPositionId = BigInt(market.yesPositionId);
     const noPositionId = BigInt(market.noPositionId);
 
-    console.log(`\nDeploying YPMVault for market: ${market.id}`);
+    console.log(`\nDeploying YMVault for market: ${market.id}`);
     console.log(`  collateralToken: ${collateralToken}`);
     console.log(`  aavePool:        ${aavePool}`);
     console.log(`  aToken:          ${aToken}`);
@@ -102,7 +102,7 @@ async function main() {
     console.log(`  yesPositionId:   ${yesPositionId}`);
     console.log(`  noPositionId:    ${noPositionId}`);
 
-    const vault = await YPMVaultFactory.connect(deployer).deploy(
+    const vault = await YMVaultFactory.connect(deployer).deploy(
       ctf,
       aavePool,
       collateralToken,

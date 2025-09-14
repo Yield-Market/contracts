@@ -25,7 +25,7 @@ const ERC20_ABI = [
 
 describe("Polygon Mainnet Fork Integration Test", function () {
   let deployer, userA, userB, userC;
-  let conditionalTokens, ypmVault;
+  let conditionalTokens, ymVault;
   let usdcContract, wethContract;
 
   // Shared market data across test steps
@@ -403,9 +403,9 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       );
     });
 
-    it("Should deploy YPMVault with real Aave for yield strategy", async function () {
+    it("Should deploy YMVault with real Aave for yield strategy", async function () {
       console.log(
-        "🔄 Step 3.2: Deploying YPMVault with real Aave integration...",
+        "🔄 Step 3.2: Deploying YMVault with real Aave integration...",
       );
 
       // Use the shared marketData variable
@@ -417,10 +417,10 @@ describe("Polygon Mainnet Fork Integration Test", function () {
 
       // Note: We're using real Aave, so no funding needed - it has its own liquidity
 
-      // Deploy YPMVault
-      console.log("🏦 Deploying YPMVault...");
-      const YPMVaultFactory = await ethers.getContractFactory("YPMVault");
-      ypmVault = await YPMVaultFactory.connect(deployer).deploy(
+      // Deploy YMVault
+      console.log("🏦 Deploying YMVault...");
+      const YMVaultFactory = await ethers.getContractFactory("YMVault");
+      ymVault = await YMVaultFactory.connect(deployer).deploy(
         POLYGON_ADDRESSES.CTF, // _conditionalTokens
         POLYGON_ADDRESSES.AAVE_POOL, // _aavePool
         POLYGON_ADDRESSES.USDC, // _collateralToken
@@ -429,18 +429,18 @@ describe("Polygon Mainnet Fork Integration Test", function () {
         marketData.yesPositionId, // _yesPositionId
         marketData.noPositionId, // _noPositionId
       );
-      await ypmVault.waitForDeployment();
+      await ymVault.waitForDeployment();
 
-      const ypmVaultAddress = await ypmVault.getAddress();
-      console.log(`✅ YPMVault deployed at: ${ypmVaultAddress}`);
+      const ymVaultAddress = await ymVault.getAddress();
+      console.log(`✅ YMVault deployed at: ${ymVaultAddress}`);
 
       // Store for later use
-      marketData.ypmVault = ypmVaultAddress;
+      marketData.ymVault = ymVaultAddress;
       marketData.aavePool = POLYGON_ADDRESSES.AAVE_POOL;
       marketData.aToken = POLYGON_ADDRESSES.AUSDC;
 
       console.log(
-        "✅ Step 3.2 Complete: YPMVault deployed with real Aave integration",
+        "✅ Step 3.2 Complete: YMVault deployed with real Aave integration",
       );
     });
   });
@@ -527,15 +527,15 @@ describe("Polygon Mainnet Fork Integration Test", function () {
     });
   });
 
-  describe("Step 5: Users Deposit into Real YPMVault", function () {
-    it("Should perform real deposits into YPMVault and mint yield tokens", async function () {
-      console.log("🔄 Step 5: Users depositing into real YPMVault...");
+  describe("Step 5: Users Deposit into Real YMVault", function () {
+    it("Should perform real deposits into YMVault and mint yield tokens", async function () {
+      console.log("🔄 Step 5: Users depositing into real YMVault...");
 
       const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // Match ConditionalTokens decimals
       // Use the shared marketData variable
 
-      console.log("📋 Using YPMVault data:");
-      console.log(`YPMVault: ${marketData.ypmVault}`);
+      console.log("📋 Using YMVault data:");
+      console.log(`YMVault: ${marketData.ymVault}`);
 
       // User C: Deposit NO tokens first (to avoid matching issues)
       console.log(`\n💼 User C: Depositing 100 NO tokens → NO.Y tokens`);
@@ -554,7 +554,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
           .connect(userC)
           .safeTransferFrom(
             userC.address,
-            marketData.ypmVault,
+            marketData.ymVault,
             marketData.noPositionId,
             DEPOSIT_AMOUNT,
             "0x"
@@ -562,7 +562,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
         await depositTx.wait();
 
         // Check NO.Y token balance
-        const noYieldBalance = await ypmVault.getNoYBalance(userC.address);
+        const noYieldBalance = await ymVault.getNoYBalance(userC.address);
         console.log(
           `✅ User C received ${ethers.formatUnits(noYieldBalance, 6)} NO.Y tokens`,
         );
@@ -597,7 +597,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
             .connect(user)
             .safeTransferFrom(
               user.address,
-              marketData.ypmVault,
+              marketData.ymVault,
               marketData.yesPositionId,
               DEPOSIT_AMOUNT,
               "0x"
@@ -605,7 +605,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
           await depositTx.wait();
 
           // Check YES.Y token balance
-          const yesYieldBalance = await ypmVault.getYesYBalance(user.address);
+          const yesYieldBalance = await ymVault.getYesYBalance(user.address);
           console.log(
             `✅ User ${userLabel} received ${ethers.formatUnits(yesYieldBalance, 6)} YES.Y tokens`,
           );
@@ -618,12 +618,12 @@ describe("Polygon Mainnet Fork Integration Test", function () {
         }
       }
 
-      // Check YPMVault state
-      console.log("\n🏦 YPMVault State:");
-      const totalYesDeposits = await ypmVault.totalYesDeposits();
-      const totalNoDeposits = await ypmVault.totalNoDeposits();
-      const totalMatched = await ypmVault.totalMatched();
-      const totalYielding = await ypmVault.totalYielding();
+      // Check YMVault state
+      console.log("\n🏦 YMVault State:");
+      const totalYesDeposits = await ymVault.totalYesDeposits();
+      const totalNoDeposits = await ymVault.totalNoDeposits();
+      const totalMatched = await ymVault.totalMatched();
+      const totalYielding = await ymVault.totalYielding();
 
       console.log(
         `📊 Total YES Deposits: ${ethers.formatUnits(totalYesDeposits, 6)}`,
@@ -635,7 +635,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       console.log(`📊 Total Yielding: ${ethers.formatUnits(totalYielding, 6)}`);
 
       // Check yield status
-      const yieldStatus = await ypmVault.getYieldStatus();
+      const yieldStatus = await ymVault.getYieldStatus();
       console.log("\n💹 Yield Status:");
       console.log(
         `📊 Total aTokens: ${ethers.formatUnits(yieldStatus.totalATokens, 6)}`,
@@ -646,12 +646,12 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       console.log(
         `📊 Accrued Yield: ${ethers.formatUnits(yieldStatus.accruedYield, 6)}`,
       );
-      // Note: YPMVault automatically matches and invests, no manual pairing needed
+      // Note: YMVault automatically matches and invests, no manual pairing needed
       console.log(
-        "✅ YPMVault automatically matches positions and invests in AAVE",
+        "✅ YMVault automatically matches positions and invests in AAVE",
       );
 
-      console.log("✅ Step 5 Complete: Real YPMVault deposits processed");
+      console.log("✅ Step 5 Complete: Real YMVault deposits processed");
     });
   });
 
@@ -709,7 +709,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
 
       console.log("📋 Resolving market using real contracts:");
       console.log(`ConditionalTokens: ${await conditionalTokens.getAddress()}`);
-      console.log(`YPMVault: ${marketData.ypmVault}`);
+      console.log(`YMVault: ${marketData.ymVault}`);
       console.log(`Question ID: ${marketData.questionId}`);
 
       // Step 1: Report payouts to ConditionalTokens (Oracle resolves the condition)
@@ -764,19 +764,19 @@ describe("Polygon Mainnet Fork Integration Test", function () {
   });
 
   describe("Step 8: User A Claims Real Winnings", function () {
-    it("Should perform real User A claim via YPMVault", async function () {
+    it("Should perform real User A claim via YMVault", async function () {
       console.log("🔄 Step 8: User A claiming real winnings...");
 
       // Use the shared marketData variable
       console.log("📋 User A claiming details:");
-      console.log(`YPMVault: ${marketData.ypmVault}`);
-      // Get YPMVault contract instance
-      const ypmVaultContract = await ethers.getContractAt(
-        "YPMVault",
-        marketData.ypmVault,
+      console.log(`YMVault: ${marketData.ymVault}`);
+      // Get YMVault contract instance
+      const ymVaultContract = await ethers.getContractAt(
+        "YMVault",
+        marketData.ymVault,
       );
       // Get User A's YES.Y token balance
-      const userAYieldBalance = await ypmVaultContract.getYesYBalance(
+      const userAYieldBalance = await ymVaultContract.getYesYBalance(
         userA.address,
       );
 
@@ -785,7 +785,7 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       );
 
       // Check User A's estimated withdrawal amount
-      const estimatedWithdrawal = await ypmVaultContract.estimateWithdrawal(
+      const estimatedWithdrawal = await ymVaultContract.estimateWithdrawal(
         userA.address,
       );
       console.log(
@@ -799,14 +799,14 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       );
 
       expect(Number(userAYieldBalance)).to.be.gt(0);
-      // Claim winnings from YPMVault
-      console.log("🏦 User A: Claiming winnings from YPMVault...");
+      // Claim winnings from YMVault
+      console.log("🏦 User A: Claiming winnings from YMVault...");
 
-      const claimTx = await ypmVaultContract.connect(userA).withdraw(userA.address);
+      const claimTx = await ymVaultContract.connect(userA).withdraw(userA.address);
       await claimTx.wait();
 
       // Check balances after claim
-      const finalYieldBalance = await ypmVaultContract.getYesYBalance(
+      const finalYieldBalance = await ymVaultContract.getYesYBalance(
         userA.address,
       );
       const finalUsdcBalance = await usdcContract.balanceOf(userA.address);
@@ -867,20 +867,20 @@ describe("Polygon Mainnet Fork Integration Test", function () {
   });
 
   describe("Step 10: User B Claims Real Remaining Winnings", function () {
-    it("Should perform real User B claim via YPMVault", async function () {
+    it("Should perform real User B claim via YMVault", async function () {
       console.log("🔄 Step 10: User B claiming real remaining winnings...");
 
       // Use the shared marketData variable
 
       console.log("📋 User B claiming details:");
-      console.log(`YPMVault: ${marketData.ypmVault}`);
-      // Get YPMVault contract instance
-      const ypmVaultContract = await ethers.getContractAt(
-        "YPMVault",
-        marketData.ypmVault,
+      console.log(`YMVault: ${marketData.ymVault}`);
+      // Get YMVault contract instance
+      const ymVaultContract = await ethers.getContractAt(
+        "YMVault",
+        marketData.ymVault,
       );
       // Get User B's YES.Y token balance
-      const userBYieldBalance = await ypmVaultContract.getYesYBalance(
+      const userBYieldBalance = await ymVaultContract.getYesYBalance(
         userB.address,
       );
 
@@ -895,14 +895,14 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       );
 
       expect(Number(userBYieldBalance)).to.be.gt(0);
-      // Claim winnings from YPMVault
-      console.log("🏦 User B: Claiming remaining winnings from YPMVault...");
+      // Claim winnings from YMVault
+      console.log("🏦 User B: Claiming remaining winnings from YMVault...");
 
-      const claimTx = await ypmVaultContract.connect(userB).withdraw(userB.address);
+      const claimTx = await ymVaultContract.connect(userB).withdraw(userB.address);
       await claimTx.wait();
 
       // Check balances after claim
-      const finalYieldBalance = await ypmVaultContract.getYesYBalance(
+      const finalYieldBalance = await ymVaultContract.getYesYBalance(
         userB.address,
       );
       const finalUsdcBalance = await usdcContract.balanceOf(userB.address);
@@ -920,10 +920,10 @@ describe("Polygon Mainnet Fork Integration Test", function () {
         `💰 Final USDC balance: ${ethers.formatUnits(finalUsdcBalance, 6)}`,
       );
 
-      // Check YPMVault state after claim
-      const yieldStatus = await ypmVaultContract.getYieldStatus();
+      // Check YMVault state after claim
+      const yieldStatus = await ymVaultContract.getYieldStatus();
       console.log(
-        `🏦 YPMVault aToken balance after claim: ${ethers.formatUnits(yieldStatus.totalATokens, 6)}`,
+        `🏦 YMVault aToken balance after claim: ${ethers.formatUnits(yieldStatus.totalATokens, 6)}`,
       );
 
       // Verify claim worked
@@ -940,10 +940,10 @@ describe("Polygon Mainnet Fork Integration Test", function () {
     it("Should analyze final asset balances for all users", async function () {
       console.log("🔄 Step 11: Analyzing final asset balances for all users...");
 
-      // Get YPMVault contract instance
-      const ypmVaultContract = await ethers.getContractAt(
-        "YPMVault",
-        marketData.ypmVault,
+      // Get YMVault contract instance
+      const ymVaultContract = await ethers.getContractAt(
+        "YMVault",
+        marketData.ymVault,
       );
 
       console.log("📊 Final Asset Balance Analysis:");
@@ -952,8 +952,8 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       // Analyze User A
       console.log("👤 User A Analysis:");
       const userAUsdcBalance = await usdcContract.balanceOf(userA.address);
-      const userAYYieldBalance = await ypmVaultContract.getYesYBalance(userA.address);
-      const userANoYieldBalance = await ypmVaultContract.getNoYBalance(userA.address);
+      const userAYYieldBalance = await ymVaultContract.getYesYBalance(userA.address);
+      const userANoYieldBalance = await ymVaultContract.getNoYBalance(userA.address);
              const userAYesTokens = await conditionalTokens.balanceOf(userA.address, marketData.yesPositionId);
        const userANoTokens = await conditionalTokens.balanceOf(userA.address, marketData.noPositionId);
 
@@ -971,8 +971,8 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       // Analyze User B
       console.log("\n👤 User B Analysis:");
       const userBUsdcBalance = await usdcContract.balanceOf(userB.address);
-      const userBYYieldBalance = await ypmVaultContract.getYesYBalance(userB.address);
-      const userBNoYieldBalance = await ypmVaultContract.getNoYBalance(userB.address);
+      const userBYYieldBalance = await ymVaultContract.getYesYBalance(userB.address);
+      const userBNoYieldBalance = await ymVaultContract.getNoYBalance(userB.address);
              const userBYesTokens = await conditionalTokens.balanceOf(userB.address, marketData.yesPositionId);
        const userBNoTokens = await conditionalTokens.balanceOf(userB.address, marketData.noPositionId);
 
@@ -990,8 +990,8 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       // Analyze User C
       console.log("\n👤 User C Analysis:");
       const userCUsdcBalance = await usdcContract.balanceOf(userC.address);
-      const userCYYieldBalance = await ypmVaultContract.getYesYBalance(userC.address);
-      const userCNoYieldBalance = await ypmVaultContract.getNoYBalance(userC.address);
+      const userCYYieldBalance = await ymVaultContract.getYesYBalance(userC.address);
+      const userCNoYieldBalance = await ymVaultContract.getNoYBalance(userC.address);
              const userCYesTokens = await conditionalTokens.balanceOf(userC.address, marketData.yesPositionId);
        const userCNoTokens = await conditionalTokens.balanceOf(userC.address, marketData.noPositionId);
 
@@ -1006,12 +1006,12 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       console.log(`   💎 Total Value: ${ethers.formatUnits(userCTotalValue, 6)} USDC equivalent`);
       console.log(`   📈 Profit/Loss: ${ethers.formatUnits(userCTotalValue - 2000000000n, 6)} USDC`);
 
-      // Analyze YPMVault state
-      console.log("\n🏦 YPMVault Final State:");
-             const yieldStatus = await ypmVaultContract.getYieldStatus();
-       const isResolved = await ypmVaultContract.isResolved();
-       const yesWon = await ypmVaultContract.yesWon();
-       const finalPayoutRatio = await ypmVaultContract.finalPayoutRatio();
+      // Analyze YMVault state
+      console.log("\n🏦 YMVault Final State:");
+             const yieldStatus = await ymVaultContract.getYieldStatus();
+       const isResolved = await ymVaultContract.isResolved();
+       const yesWon = await ymVaultContract.yesWon();
+       const finalPayoutRatio = await ymVaultContract.finalPayoutRatio();
 
        console.log(`   📊 Total aTokens: ${ethers.formatUnits(yieldStatus.totalATokens, 6)}`);
       console.log(`   📊 Total Collateral: ${ethers.formatUnits(yieldStatus.totalCollateral, 6)}`);

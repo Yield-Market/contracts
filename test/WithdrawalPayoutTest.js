@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("YPMVault payout calculation", function () {
+describe("YMVault payout calculation", function () {
   it("computes proportional payout and withdraw caps to available underlying", async function () {
     const [deployer, alice] = await ethers.getSigners();
 
@@ -26,10 +26,10 @@ describe("YPMVault payout calculation", function () {
     // Mark YES wins with denominator 1
     await ctf.setPayout(conditionId, 1, 0, 1);
 
-    const YPMVault = await ethers.getContractFactory("YPMVault");
+    const YMVault = await ethers.getContractFactory("YMVault");
     const yesId = 1n;
     const noId = 2n;
-    const vault = await YPMVault.deploy(
+    const vault = await YMVault.deploy(
       await ctf.getAddress(),
       await aavePool.getAddress(),
       await usdc.getAddress(),

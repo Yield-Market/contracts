@@ -103,13 +103,11 @@ interface IAToken is IERC20 {
      * @param user The user for which the balance is being queried
      * @return The current balance of the user in underlying asset units
      **/
-    function balanceOf(
-        address user
-    ) external view override returns (uint256);
+    function balanceOf(address user) external view override returns (uint256);
 }
 
 /**
- * @title YPM Vault
+ * @title YM Vault
  * @dev Yield-enhanced bridge vault for Polymarket conditional tokens
  *
  * Core capabilities:
@@ -118,7 +116,7 @@ interface IAToken is IERC20 {
  * 3. Supply USDC into AAVE to earn yield
  * 4. After market resolution, distribute principal + yield to the winning side
  */
-contract YPMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
+contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
     // ===== State variables =====
 
     // External contracts
@@ -182,7 +180,7 @@ contract YPMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         bytes32 _conditionId,
         uint256 _yesPositionId,
         uint256 _noPositionId
-    ) ERC20("YPM Vault Token", "YPM") Ownable(msg.sender) {
+    ) ERC20("YM Vault Token", "YM") Ownable(msg.sender) {
         conditionalTokens = IConditionalTokens(_conditionalTokens);
         aavePool = IAavePool(_aavePool);
         collateralToken = IERC20(_collateralToken);
@@ -527,7 +525,7 @@ contract YPMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         uint256 id,
         uint256 value,
         bytes calldata /* data */
-    ) external nonReentrant override returns (bytes4) {
+    ) external override nonReentrant returns (bytes4) {
         // Ensure sender is ConditionalTokens
         require(
             msg.sender == address(conditionalTokens),
@@ -578,7 +576,7 @@ contract YPMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         uint256[] calldata ids,
         uint256[] calldata values,
         bytes calldata /* data */
-    ) external nonReentrant override returns (bytes4) {
+    ) external override nonReentrant returns (bytes4) {
         // Ensure sender is ConditionalTokens
         require(
             msg.sender == address(conditionalTokens),
