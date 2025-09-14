@@ -1,5 +1,9 @@
 # YM Contracts
 
+![Build](https://img.shields.io/github/actions/workflow/status/Yield-Market/contracts/slither.yml?branch=main)
+![License](https://img.shields.io/github/license/Yield-Market/contracts)
+![Last Commit](https://img.shields.io/github/last-commit/Yield-Market/contracts)
+
 Yield-Enhanced Prediction Market Vaults (YM). This package contains the core smart contract (`YMVault.sol`) plus developer scripts and tests to reproduce the vault workflow against a Polygon mainnet fork.
 
 ## Contents
