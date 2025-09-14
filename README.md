@@ -35,7 +35,7 @@ Key external dependencies (addresses must be correct for your network/fork):
 ## Installation
 
 ```bash
-npm install --legacy-peer-deps
+npm install --no-lockfile --legacy-peer-deps
 ```
 
 ## Environment Setup
@@ -118,7 +118,7 @@ npm run get:usdc           # fund receiver with USDC (if present in scripts/)
 ## Testing
 
 ```bash
-npm run test
+ALLOW_TEST_SCRIPTS=true npm run test
 ```
 
 Unit/integration tests cover vault accounting, matching/merging, resolution, and withdrawal math (including loser-path behavior). See `test/WithdrawalPayoutTest.js` and `test/PolygonIntegrationTest.js`.
