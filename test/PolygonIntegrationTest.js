@@ -417,21 +417,39 @@ describe("Polygon Mainnet Fork Integration Test", function () {
 
       // Note: We're using real Aave, so no funding needed - it has its own liquidity
 
-      // Deploy YMVault
-      console.log("🏦 Deploying YMVault...");
-      const YMVaultFactory = await ethers.getContractFactory("YMVault");
-      ymVault = await YMVaultFactory.connect(deployer).deploy(
-        POLYGON_ADDRESSES.CTF, // _conditionalTokens
-        POLYGON_ADDRESSES.AAVE_POOL, // _aavePool
-        POLYGON_ADDRESSES.USDC, // _collateralToken
-        POLYGON_ADDRESSES.AUSDC, // _aToken
-        marketData.conditionId, // _conditionId
-        marketData.yesPositionId, // _yesPositionId
-        marketData.noPositionId, // _noPositionId
+      // Deploy YMVault implementation + factory and create a beacon proxy YMVault
+      console.log("🏦 Deploying YMVault implementation + factory (beacon proxy) and creating proxy...");
+      const YMVaultImplF = await ethers.getContractFactory("YMVault");
+      const ymImpl = await YMVaultImplF.connect(deployer).deploy();
+      await ymImpl.waitForDeployment();
+      const YMVaultFactoryF = await ethers.getContractFactory("YMVaultFactory");
+      const ymFactory = await YMVaultFactoryF.connect(deployer).deploy(
+        await ymImpl.getAddress(),
+        deployer.address
       );
-      await ymVault.waitForDeployment();
-
-      const ymVaultAddress = await ymVault.getAddress();
+      await ymFactory.waitForDeployment();
+      const createVaultTx = await ymFactory.createVault(
+        POLYGON_ADDRESSES.CTF,
+        POLYGON_ADDRESSES.AAVE_POOL,
+        POLYGON_ADDRESSES.USDC,
+        POLYGON_ADDRESSES.AUSDC,
+        marketData.conditionId,
+        marketData.yesPositionId,
+        marketData.noPositionId,
+        deployer.address
+      );
+      const createVaultRcpt = await createVaultTx.wait();
+      let ymVaultAddress;
+      for (const log of createVaultRcpt.logs) {
+        try {
+          const parsed = ymFactory.interface.parseLog(log);
+          if (parsed && parsed.name === "VaultProxyCreated") {
+            ymVaultAddress = parsed.args.proxy;
+            break;
+          }
+        } catch {}
+      }
+      ymVault = await ethers.getContractAt("YMVault", ymVaultAddress);
       console.log(`✅ YMVault deployed at: ${ymVaultAddress}`);
 
       // Store for later use
