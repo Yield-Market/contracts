@@ -425,9 +425,11 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       const YMVaultFactoryF = await ethers.getContractFactory("YMVaultFactory");
       const ymFactory = await YMVaultFactoryF.connect(deployer).deploy(
         await ymImpl.getAddress(),
-        deployer.address
+        deployer.address,
+        ""
       );
       await ymFactory.waitForDeployment();
+
       const createVaultTx = await ymFactory.createVault(
         POLYGON_ADDRESSES.CTF,
         POLYGON_ADDRESSES.AAVE_POOL,
@@ -451,6 +453,8 @@ describe("Polygon Mainnet Fork Integration Test", function () {
       }
       ymVault = await ethers.getContractAt("YMVault", ymVaultAddress);
       console.log(`✅ YMVault deployed at: ${ymVaultAddress}`);
+
+      // Minters already set by factory
 
       // Store for later use
       marketData.ymVault = ymVaultAddress;

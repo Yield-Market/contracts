@@ -118,7 +118,8 @@ async function main() {
     await impl.waitForDeployment();
     const factory = await YMVaultFactoryFactory.connect(deployer).deploy(
       await impl.getAddress(),
-      deployer.address
+      deployer.address,
+      ""
     );
     await factory.waitForDeployment();
 
@@ -144,6 +145,7 @@ async function main() {
       } catch {}
     }
     console.log(`${market.id}  -> Deployed proxy at: ${deployedAddress}`);
+    // Minters already set by factory
 
   }
 }

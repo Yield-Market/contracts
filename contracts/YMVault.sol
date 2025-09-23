@@ -105,6 +105,12 @@ interface IAToken is IERC20 {
     function balanceOf(address user) external view override returns (uint256);
 }
 
+interface IYMReceipt {
+    function mint(address to, uint256 id, uint256 amount) external;
+    function burn(address from, uint256 id, uint256 amount) external;
+    function balanceOf(address account, uint256 id) external view returns (uint256);
+}
+
 /**
  * @title YM Vault
  * @dev Yield-enhanced bridge vault for Polymarket conditional tokens
@@ -124,6 +130,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
     IAavePool public aavePool;
     IERC20 public collateralToken; // USDC
     IAToken public aToken; // aUSDC
+    IYMReceipt public receipt; // unified ERC1155 for YES.Y/NO.Y
 
     // Market parameters
     bytes32 public conditionId;
@@ -181,6 +188,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         bytes32 _conditionId,
         uint256 _yesPositionId,
         uint256 _noPositionId,
+        address _receipt,
         address _initialOwner
     ) external {
         require(!_initialized, "Already initialized");
@@ -189,6 +197,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         aavePool = IAavePool(_aavePool);
         collateralToken = IERC20(_collateralToken);
         aToken = IAToken(_aToken);
+        receipt = IYMReceipt(_receipt);
 
         conditionId = _conditionId;
         yesPositionId = _yesPositionId;
@@ -302,10 +311,14 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         if (yesYBalance > 0) {
             totalYesDeposits -= yesYTokens[msg.sender];
             yesYTokens[msg.sender] = 0;
+            // Burn YES.Y receipts
+            receipt.burn(msg.sender, yesPositionId, yesYBalance);
         }
         if (noYBalance > 0) {
             totalNoDeposits -= noYTokens[msg.sender];
             noYTokens[msg.sender] = 0;
+            // Burn NO.Y receipts
+            receipt.burn(msg.sender, noPositionId, noYBalance);
         }
 
         emit Withdrawal(msg.sender, to, yesYBalance, noYBalance, usdcReceived);
@@ -579,11 +592,13 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         // Market must be unresolved
         require(!isResolved, "Market already resolved");
 
-        // Handle deposit by token id
+        // Handle deposit by token id (mint transferable receipt)
         if (id == yesPositionId) {
             // Process YES deposit
             yesYTokens[from] = yesYTokens[from] + value;
             totalYesDeposits = totalYesDeposits + value;
+            // Mint YES.Y receipt
+            receipt.mint(from, yesPositionId, value);
 
             // Try to match and invest
             _tryMatchAndInvest();
@@ -593,6 +608,8 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
             // Process NO deposit
             noYTokens[from] = noYTokens[from] + value;
             totalNoDeposits = totalNoDeposits + value;
+            // Mint NO.Y receipt
+            receipt.mint(from, noPositionId, value);
 
             // Try to match and invest
             _tryMatchAndInvest();
@@ -646,12 +663,14 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
                 // Process YES deposit
                 yesYTokens[from] = yesYTokens[from] + value;
                 totalYesDeposits = totalYesDeposits + value;
+                receipt.mint(from, yesPositionId, value);
 
                 emit YesTokenDeposited(from, value, value);
             } else if (id == noPositionId) {
                 // Process NO deposit
                 noYTokens[from] = noYTokens[from] + value;
                 totalNoDeposits = totalNoDeposits + value;
+                receipt.mint(from, noPositionId, value);
 
                 emit NoTokenDeposited(from, value, value);
             }
