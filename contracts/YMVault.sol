@@ -2,7 +2,6 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -116,14 +115,15 @@ interface IAToken is IERC20 {
  * 3. Supply USDC into AAVE to earn yield
  * 4. After market resolution, distribute principal + yield to the winning side
  */
-contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
+contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
+    constructor() Ownable(msg.sender) {}
     // ===== State variables =====
 
-    // External contracts
-    IConditionalTokens public immutable conditionalTokens;
-    IAavePool public immutable aavePool;
-    IERC20 public immutable collateralToken; // USDC
-    IAToken public immutable aToken; // aUSDC
+    // External contracts (set in initialize)
+    IConditionalTokens public conditionalTokens;
+    IAavePool public aavePool;
+    IERC20 public collateralToken; // USDC
+    IAToken public aToken; // aUSDC
 
     // Market parameters
     bytes32 public conditionId;
@@ -170,17 +170,21 @@ contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         uint256 usdcReceived
     );
 
-    // ===== Constructor =====
+    bool private _initialized;
 
-    constructor(
+    // ===== Initializer =====
+    function initialize(
         address _conditionalTokens,
         address _aavePool,
         address _collateralToken,
         address _aToken,
         bytes32 _conditionId,
         uint256 _yesPositionId,
-        uint256 _noPositionId
-    ) ERC20("YM Vault Token", "YM") Ownable(msg.sender) {
+        uint256 _noPositionId,
+        address _initialOwner
+    ) external {
+        require(!_initialized, "Already initialized");
+
         conditionalTokens = IConditionalTokens(_conditionalTokens);
         aavePool = IAavePool(_aavePool);
         collateralToken = IERC20(_collateralToken);
@@ -189,6 +193,9 @@ contract YMVault is ERC20, ReentrancyGuard, Ownable, IERC1155Receiver {
         conditionId = _conditionId;
         yesPositionId = _yesPositionId;
         noPositionId = _noPositionId;
+
+        _transferOwnership(_initialOwner);
+        _initialized = true;
     }
 
     // ===== Main functions =====

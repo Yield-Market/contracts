@@ -1,15 +1,30 @@
 require("@nomicfoundation/hardhat-ethers");
+require("@nomicfoundation/hardhat-chai-matchers");
 
 module.exports = {
   solidity: {
-    version: "0.8.20",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    compilers: [
+      {
+        version: "0.8.19",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          viaIR: true,
+        },
       },
-      viaIR: true, // Required for complex contracts
-    },
+      {
+        version: "0.8.23",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          viaIR: true,
+        },
+      },
+    ],
   },
   networks: {
     hardhat: {

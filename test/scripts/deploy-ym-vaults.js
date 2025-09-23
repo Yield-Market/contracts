@@ -83,7 +83,8 @@ async function main() {
   console.log(`CTF: ${ctf}`);
   console.log(`aUSDC: ${aToken}`);
 
-  const YMVaultFactory = await ethers.getContractFactory("YMVault");
+  const YMVaultImplFactory = await ethers.getContractFactory("YMVault");
+  const YMVaultFactoryFactory = await ethers.getContractFactory("YMVaultFactory");
 
   const deployments = [];
   for (const market of markets) {
@@ -112,7 +113,16 @@ async function main() {
     console.log(`  yesPositionId:   ${yesPositionId}`);
     console.log(`  noPositionId:    ${noPositionId}`);
 
-    const vault = await YMVaultFactory.connect(deployer).deploy(
+    // Deploy implementation if needed (idempotent for test use; in prod keep a single implementation)
+    const impl = await YMVaultImplFactory.connect(deployer).deploy();
+    await impl.waitForDeployment();
+    const factory = await YMVaultFactoryFactory.connect(deployer).deploy(
+      await impl.getAddress(),
+      deployer.address
+    );
+    await factory.waitForDeployment();
+
+    const tx = await factory.createVault(
       ctf,
       aavePool,
       collateralToken,
@@ -120,10 +130,20 @@ async function main() {
       conditionId,
       yesPositionId,
       noPositionId,
+      deployer.address
     );
-    await vault.waitForDeployment();
-    const deployedAddress = await vault.getAddress();
-    console.log(`${market.id}  -> Deployed at: ${deployedAddress}`);
+    const rcpt = await tx.wait();
+    let deployedAddress;
+    for (const log of rcpt.logs) {
+      try {
+        const parsed = factory.interface.parseLog(log);
+        if (parsed && parsed.name === "VaultProxyCreated") {
+          deployedAddress = parsed.args.proxy;
+          break;
+        }
+      } catch {}
+    }
+    console.log(`${market.id}  -> Deployed proxy at: ${deployedAddress}`);
 
   }
 }
