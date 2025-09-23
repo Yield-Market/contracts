@@ -28,6 +28,7 @@ describe("YMVault payout calculation", function () {
 
     // Deploy YMVault implementation + factory and create a proxy vault
     const Impl = await ethers.getContractFactory("YMVault");
+    const Receipt = await ethers.getContractFactory("YMReceipt");
     const impl = await Impl.deploy();
     await impl.waitForDeployment();
     const Factory = await ethers.getContractFactory("YMVaultFactory");
@@ -35,6 +36,9 @@ describe("YMVault payout calculation", function () {
     await factory.waitForDeployment();
     const yesId = 1n;
     const noId = 2n;
+    const receipt = await Receipt.deploy("", deployer.address);
+    await receipt.waitForDeployment();
+
     const tx = await factory.createVault(
       await ctf.getAddress(),
       await aavePool.getAddress(),
@@ -43,6 +47,7 @@ describe("YMVault payout calculation", function () {
       conditionId,
       yesId,
       noId,
+      await receipt.getAddress(),
       deployer.address
     );
     const rcpt = await tx.wait();
