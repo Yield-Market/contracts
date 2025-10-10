@@ -1,25 +1,25 @@
 /*
  Core logic extracted from test/07-yield-generation.test.js
- - Reads first non-zero YMVault address from scripts/markets.json
+ - Reads market from markets.json (specify MARKET_ID env var)
  - Advances time to simulate yield accrual on a Polygon fork
  - Prints vault yield status, aUSDC totals, and simple yield analysis
 
  Usage (recommended on Polygon fork):
    export POLYGON_RPC_URL="https://rpc.ankr.com/polygon"
    npx hardhat node --fork $POLYGON_RPC_URL --chain-id 137 &
+   # Required: export MARKET_ID=588fa06c-fb08-4eb4-87c3-eda1b33704c8
    npx hardhat run scripts/yield-generation.js --network localhost
 */
 
 const fs = require("fs");
 const path = require("path");
 const { ethers, network } = require("hardhat");
-const { POLYGON, MARKET} = require("./config");
+const { POLYGON } = require("./config");
+const config = require("./config");
 
 const POLYGON_ADDRESSES = {
   AUSDC: POLYGON.AUSDC,
 };
-
-const ymVaultAddress = MARKET.ymVaultAddress;
 
 
 const aTokenABI = [
@@ -31,20 +31,28 @@ const aTokenABI = [
   "function totalSupply() view returns (uint256)",
 ];
 
-function loadVaultAddress() {
-  const marketsPath = path.resolve(__dirname, "markets.json");
-  const items = JSON.parse(fs.readFileSync(marketsPath, "utf8"));
-  for (const m of items) {
-    if (m.ymVaultAddress && m.ymVaultAddress !== "0x0000000000000000000000000000000000000000") {
-      return m.ymVaultAddress;
-    }
-  }
-  return null;
-}
-
 async function main() {
+  // Get market from environment variable
+  const targetMarketId = process.env.MARKET_ID;
+  if (!targetMarketId) {
+    throw new Error("MARKET_ID environment variable is required");
+  }
+  
+  const market = config.getMarketById(targetMarketId);
+  if (!market) {
+    throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
+  }
+  
+  const ymVaultAddress = market.ymVaultAddress;
+  if (!ymVaultAddress || ymVaultAddress === "0x0000000000000000000000000000000000000000") {
+    throw new Error(`Market ${targetMarketId} does not have a deployed vault address`);
+  }
+  
+  console.log(`Testing yield generation for market: ${market.question}`);
+  console.log(`Market ID: ${targetMarketId}`);
+  console.log(`Vault address: ${ymVaultAddress}`);
+  
   const chain = await ethers.provider.getNetwork();
-
 
   const [deployer, userA, userB, userC] = await ethers.getSigners();
 

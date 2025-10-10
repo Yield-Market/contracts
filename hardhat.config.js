@@ -1,5 +1,19 @@
 require("@nomicfoundation/hardhat-ethers");
 require("@nomicfoundation/hardhat-chai-matchers");
+const fs = require("fs");
+const path = require("path");
+
+// Function to load markets from markets.json
+function loadMarketsFromJson() {
+  try {
+    const marketsPath = path.join(__dirname, "markets.json");
+    const marketsData = fs.readFileSync(marketsPath, "utf8");
+    return JSON.parse(marketsData);
+  } catch (error) {
+    console.error("Error loading markets.json:", error.message);
+    return [];
+  }
+}
 
 module.exports = {
   solidity: {
@@ -93,4 +107,6 @@ module.exports = {
   mocha: {
     timeout: 120000, // 2 minutes for fork operations
   },
+  // Add markets configuration
+  markets: loadMarketsFromJson(),
 };

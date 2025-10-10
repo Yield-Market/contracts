@@ -1,12 +1,13 @@
 /*
  Core logic extracted from test/08-market-resolution.test.js
- - Reads first non-zero YMVault from scripts/markets.json
+ - Reads market from markets.json (specify MARKET_ID env var)
  - (Optional) Resolves ConditionalTokens if QUESTION_ID provided (YES wins)
  - Resolves YMVault and prints final resolution state and vault balances
 
  Usage (on Polygon fork):
    export POLYGON_RPC_URL="https://rpc.ankr.com/polygon"
    npx hardhat node --fork $POLYGON_RPC_URL --chain-id 137 &
+   # Required: export MARKET_ID=588fa06c-fb08-4eb4-87c3-eda1b33704c8
    # Optional: export QUESTION_ID=0x...
    npx hardhat run scripts/market-resolution.js --network localhost
 */
@@ -14,7 +15,8 @@
 const fs = require("fs");
 const path = require("path");
 const { ethers } = require("hardhat");
-const { POLYGON, MARKET} = require("./config");
+const { POLYGON } = require("./config");
+const config = require("./config");
 
 const POLYGON_ADDRESSES = {
   CTF: POLYGON.CTF,
@@ -30,8 +32,29 @@ const conditionalTokensABI = [
 ];
 
 async function main() {
-  const ymVault = MARKET.ymVaultAddress;
-  const conditionId = MARKET.conditionId;
+  // Get market from environment variable
+  const targetMarketId = process.env.MARKET_ID;
+  if (!targetMarketId) {
+    throw new Error("MARKET_ID environment variable is required");
+  }
+  
+  const market = config.getMarketById(targetMarketId);
+  if (!market) {
+    throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
+  }
+  
+  const ymVault = market.ymVaultAddress;
+  const conditionId = market.conditionId;
+  
+  if (!ymVault || ymVault === "0x0000000000000000000000000000000000000000") {
+    throw new Error(`Market ${targetMarketId} does not have a deployed vault address`);
+  }
+  
+  console.log(`Resolving market: ${market.question}`);
+  console.log(`Market ID: ${targetMarketId}`);
+  console.log(`Vault address: ${ymVault}`);
+  console.log(`Condition ID: ${conditionId}`);
+  
   const [deployer, userA, userB, userC] = await ethers.getSigners();
 
   const conditionalTokens = new ethers.Contract(

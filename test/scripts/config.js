@@ -2,6 +2,41 @@
 
 // Load environment variables
 require('dotenv').config();
+const fs = require("fs");
+const path = require("path");
+
+// Function to load markets from markets.json
+function loadMarketsFromJson() {
+  try {
+    const marketsPath = path.join(__dirname, "../../markets.json");
+    const marketsData = fs.readFileSync(marketsPath, "utf8");
+    return JSON.parse(marketsData);
+  } catch (error) {
+    console.error("Error loading markets.json:", error.message);
+    return [];
+  }
+}
+
+// Transform markets.json data to match expected format for deployment scripts
+function transformMarketData(market) {
+  return {
+    id: market.id,
+    conditionId: market.condition_id,
+    questionId: market.question_id,
+    collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC on Polygon
+    ymVaultAddress: market.vault_address || "0x0000000000000000000000000000000000000000",
+    yesPositionId: market.clob_token_id_yes,
+    noPositionId: market.clob_token_id_no,
+    yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Aave v3 Pool on Polygon
+    question: market.question,
+    status: market.status,
+    active: market.active,
+    closed: market.closed,
+    tickSize: market.clob_tick_size,
+    negRisk: market.clob_neg_risk,
+    enableOrderBook: market.enable_order_book
+  };
+}
 
 module.exports = {
   // Polygon mainnet addresses (used on forks)
@@ -80,6 +115,21 @@ module.exports = {
   //   noPositionId: "88747915775193520968087293930277588686308934898905310163489992909007647305232",
   //   yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
   // },
+  
+  // Load markets from markets.json and get all markets or specific market
+  getAllMarkets: function() {
+    const rawMarkets = loadMarketsFromJson();
+    return rawMarkets.map(transformMarketData);
+  },
+  
+  getMarketById: function(marketId) {
+    const rawMarkets = loadMarketsFromJson();
+    const market = rawMarkets.find(m => m.id === marketId);
+    return market ? transformMarketData(market) : null;
+  },
+  
+  // For backward compatibility, you can still use MARKET for single market deployment
+  // MARKET: transformMarketData(loadMarketsFromJson()[0] || {}),
 };
 
 

@@ -35,3 +35,51 @@ Key external dependencies (addresses must be correct for your network/fork):
 - Node.js 18+
 - npm 9+
 - Hardhat 2.22+
+
+## Market Configuration & Deployment
+
+Markets are configured in `markets.json` with support for multi-market vault deployment.
+
+### Quick Start
+
+1. **Start local hardhat node:**
+   ```bash
+   npx hardhat node --chain-id 1337
+   ```
+
+2. **Deploy vaults:**
+   ```bash
+   # Deploy all markets
+   ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/deploy-ym-vaults.js --network localhost
+   
+   # Deploy specific market
+   MARKET_ID="588fa06c-fb08-4eb4-87c3-eda1b33704c8" ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/deploy-ym-vaults.js --network localhost
+   
+   # Reuse existing factory (saves gas)
+   FACTORY_ADDRESS=0x... IMPL_ADDRESS=0x... ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/deploy-ym-vaults.js --network localhost
+   ```
+
+3. **Use interactive deployment:**
+   ```bash
+   ./deploy-vaults.sh
+   ```
+
+### Factory Optimization
+
+YMVaultFactory and implementation are deployed **once** and reused for all markets, optimizing gas costs and ensuring consistency.
+
+### Environment Variables
+
+- `ALLOW_TEST_SCRIPTS=true`: Required for test scripts
+- `MARKET_ID`: Target specific market by ID
+- `FACTORY_ADDRESS`/`IMPL_ADDRESS`: Reuse existing contracts
+- `UPDATE_MARKETS_JSON=true`: Update markets.json with deployed addresses
+
+### Testing Market Functionality
+
+```bash
+# Test specific market (requires MARKET_ID)
+MARKET_ID="market-id" ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/split-and-transfer.js --network localhost
+MARKET_ID="market-id" ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/yield-generation.js --network localhost
+MARKET_ID="market-id" ALLOW_TEST_SCRIPTS=true npx hardhat run test/scripts/market-resolve.js --network localhost
+```

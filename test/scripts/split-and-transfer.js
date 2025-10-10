@@ -4,13 +4,15 @@
  Requirements:
    - ALLOW_TEST_SCRIPTS=true
    - Local hardhat or forked network (chainId 1337/31337)
+   - MARKET_ID environment variable
 
  Config:
-   - Uses POLYGON.*, MARKET.conditionId and TEST.YES_RECEIVER/NO_RECEIVER/USDC_AMOUNT from config.js
+   - Uses POLYGON.* and market from markets.json, TEST.YES_RECEIVER/NO_RECEIVER/USDC_AMOUNT from config.js
 
  Usage:
    export POLYGON_RPC_URL="https://rpc.ankr.com/polygon"
    npx hardhat node --fork $POLYGON_RPC_URL --chain-id 1337 &
+   # Required: export MARKET_ID=588fa06c-fb08-4eb4-87c3-eda1b33704c8
    ALLOW_TEST_SCRIPTS=true hardhat run test/scripts/split-and-transfer.js --network localhost
 
  Notes:
@@ -19,14 +21,12 @@
 */
 
 const { ethers, network } = require("hardhat");
-const { POLYGON, WHALES, LOCAL_CHAIN_IDS, TEST, MARKET } = require("./config");
+const { POLYGON, WHALES, LOCAL_CHAIN_IDS, TEST } = require("./config");
+const config = require("./config");
 
 // Polygon addresses
 const USDC = POLYGON.USDC;
 const CTF = POLYGON.CTF;
-
-// Condition ID to split under
-const CONDITION_ID = MARKET.conditionId;
 
 // Known USDC-rich address on Polygon (used in tests)
 const USDC_WHALE = WHALES.USDC;
@@ -91,6 +91,23 @@ async function main() {
   if (process.env.ALLOW_TEST_SCRIPTS !== "true") {
     throw new Error("Refusing to run: set ALLOW_TEST_SCRIPTS=true to allow test scripts");
   }
+  
+  // Get market from environment variable
+  const targetMarketId = process.env.MARKET_ID;
+  if (!targetMarketId) {
+    throw new Error("MARKET_ID environment variable is required");
+  }
+  
+  const market = config.getMarketById(targetMarketId);
+  if (!market) {
+    throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
+  }
+  
+  const CONDITION_ID = market.conditionId;
+  console.log(`Using market: ${market.question}`);
+  console.log(`Market ID: ${targetMarketId}`);
+  console.log(`Condition ID: ${CONDITION_ID}`);
+  
   const chain = await ethers.provider.getNetwork();
   const chainId = Number(chain.chainId);
   if (!LOCAL_CHAIN_IDS.includes(chainId)) {
