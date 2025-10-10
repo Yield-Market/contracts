@@ -29,6 +29,7 @@ Key external dependencies (addresses must be correct for your network/fork):
 - ConditionalTokens (Polymarket/Gnosis CTF)
 - Aave v3 Pool (Polygon)
 - aUSDC (Polygon)
+- Supports both regular USDC and Polymarket's WrappedCollateral (WCOL) tokens
 
 ## Requirements
 
@@ -67,6 +68,15 @@ Markets are configured in `markets.json` with support for multi-market vault dep
 ### Factory Optimization
 
 YMVaultFactory and implementation are deployed **once** and reused for all markets, optimizing gas costs and ensuring consistency.
+
+### Wrapped Collateral Support
+
+The vault automatically detects and handles Polymarket's WrappedCollateral (WCOL) tokens:
+- **Regular USDC markets**: Collateral is supplied directly to AAVE
+- **Wrapped USDC markets**: Collateral is unwrapped to USDC before supplying to AAVE
+- **Automatic detection**: No manual configuration needed
+
+Position IDs are calculated using the correct collateral token (wrapped or unwrapped) as specified in the CTF contract.
 
 ### Environment Variables
 

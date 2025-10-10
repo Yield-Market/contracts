@@ -23,8 +23,10 @@ function transformMarketData(market) {
     id: market.id,
     conditionId: market.condition_id,
     questionId: market.question_id,
-    collateralToken: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC on Polygon
+    // Use the actual collateral token from CTF events (could be wrapped USDC)
+    collateralToken: getCollateralTokenForMarket(market.condition_id),
     ymVaultAddress: market.vault_address || "0x0000000000000000000000000000000000000000",
+    // Use position IDs from markets.json (these are the correct CTF position IDs)
     yesPositionId: market.clob_token_id_yes,
     noPositionId: market.clob_token_id_no,
     yieldStrategy: "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Aave v3 Pool on Polygon
@@ -36,6 +38,18 @@ function transformMarketData(market) {
     negRisk: market.clob_neg_risk,
     enableOrderBook: market.enable_order_book
   };
+}
+
+// Get the correct collateral token for a market by checking known mappings
+function getCollateralTokenForMarket(conditionId) {
+  // Known wrapped collateral tokens for specific conditions
+  const wrappedCollateralMapping = {
+    "0xc432af9280482e26f71cb60e0f6f73b302cecb95371e1b076b99da1daa240211": "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2", // Wrapped USDC
+    // Add more mappings as needed
+  };
+  
+  // Return wrapped collateral if mapped, otherwise default to USDC
+  return wrappedCollateralMapping[conditionId] || "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 }
 
 module.exports = {

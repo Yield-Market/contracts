@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "./IWrappedCollateral.sol";
 
 // Conditional Tokens interface
 interface IConditionalTokens {
@@ -128,9 +129,13 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
     // External contracts (set in initialize)
     IConditionalTokens public conditionalTokens;
     IAavePool public aavePool;
-    IERC20 public collateralToken; // USDC
+    IERC20 public collateralToken; // USDC or WrappedUSDC
     IAToken public aToken; // aUSDC
     IYMReceipt public receipt; // unified ERC1155 for YES.Y/NO.Y
+    
+    // Wrapped collateral support
+    bool public isWrappedCollateral; // True if collateral is wrapped
+    IERC20 public underlyingToken; // Underlying USDC if wrapped
 
     // Market parameters
     bytes32 public conditionId;
@@ -198,6 +203,17 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         collateralToken = IERC20(_collateralToken);
         aToken = IAToken(_aToken);
         receipt = IYMReceipt(_receipt);
+
+        // Check if collateral token is wrapped
+        try IWrappedCollateral(_collateralToken).underlying() returns (address underlying) {
+            // It's a wrapped collateral token
+            isWrappedCollateral = true;
+            underlyingToken = IERC20(underlying);
+        } catch {
+            // It's a regular token (USDC)
+            isWrappedCollateral = false;
+            underlyingToken = collateralToken;
+        }
 
         conditionId = _conditionId;
         yesPositionId = _yesPositionId;
@@ -385,21 +401,41 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
 
             totalMatched = totalMatched + matchAmount;
 
-            // Supply USDC to AAVE
+            // Handle wrapped/unwrapped collateral and supply to AAVE
             uint256 usdcBalance = collateralToken.balanceOf(address(this));
             if (usdcBalance > 0) {
-                collateralToken.approve(address(aavePool), usdcBalance);
-                aavePool.supply(
-                    address(collateralToken),
-                    usdcBalance,
-                    address(this),
-                    0
-                );
-                totalYielding = totalYielding + usdcBalance;
+                uint256 usdcToSupply;
+                
+                if (isWrappedCollateral) {
+                    // Unwrap the wrapped collateral to get underlying USDC
+                    IWrappedCollateral(address(collateralToken)).unwrap(address(this), usdcBalance);
+                    usdcToSupply = underlyingToken.balanceOf(address(this));
+                    
+                    // Approve and supply underlying USDC to AAVE
+                    underlyingToken.approve(address(aavePool), usdcToSupply);
+                    aavePool.supply(
+                        address(underlyingToken),
+                        usdcToSupply,
+                        address(this),
+                        0
+                    );
+                } else {
+                    // Supply collateral token directly (it's already USDC)
+                    usdcToSupply = usdcBalance;
+                    collateralToken.approve(address(aavePool), usdcToSupply);
+                    aavePool.supply(
+                        address(collateralToken),
+                        usdcToSupply,
+                        address(this),
+                        0
+                    );
+                }
+                
+                totalYielding = totalYielding + usdcToSupply;
 
-                emit PositionsMatched(matchAmount, usdcBalance);
+                emit PositionsMatched(matchAmount, usdcToSupply);
                 emit YieldDeposited(
-                    usdcBalance,
+                    usdcToSupply,
                     aToken.balanceOf(address(this))
                 );
             }
@@ -442,14 +478,35 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
 
             // Supply received USDC to AAVE to earn yield
             if (usdcReceived > 0) {
-                collateralToken.approve(address(aavePool), usdcReceived);
-                aavePool.supply(
-                    address(collateralToken),
-                    usdcReceived,
-                    address(this),
-                    0
-                );
-                totalYielding = totalYielding + usdcReceived;
+                uint256 usdcToSupply;
+                
+                if (isWrappedCollateral) {
+                    // Unwrap the wrapped collateral to get underlying USDC
+                    IWrappedCollateral(address(collateralToken)).unwrap(address(this), usdcReceived);
+                    usdcToSupply = underlyingToken.balanceOf(address(this)) - 
+                                  (totalYielding > 0 ? aavePool.withdraw(address(underlyingToken), type(uint256).max, address(this)) : 0);
+                    
+                    // Approve and supply underlying USDC to AAVE
+                    underlyingToken.approve(address(aavePool), usdcToSupply);
+                    aavePool.supply(
+                        address(underlyingToken),
+                        usdcToSupply,
+                        address(this),
+                        0
+                    );
+                } else {
+                    // Supply collateral token directly (it's already USDC)
+                    usdcToSupply = usdcReceived;
+                    collateralToken.approve(address(aavePool), usdcToSupply);
+                    aavePool.supply(
+                        address(collateralToken),
+                        usdcToSupply,
+                        address(this),
+                        0
+                    );
+                }
+                
+                totalYielding = totalYielding + usdcToSupply;
             }
         }
     }
