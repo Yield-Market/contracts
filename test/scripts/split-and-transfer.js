@@ -1,5 +1,18 @@
 /*
- Test-only script: split USDC into YES/NO CTF tokens and transfer.
+ Test-only script: split USDC into YES// Wrapped USDC ABI (from the contract you provided)
+const WRAPPED_USDC_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function transfer(address,uint256) returns (bool)", 
+  "function approve(address,uint256) returns (bool)",
+  "function decimals() view returns (uint8)",
+  "function underlying() view returns (address)",
+  "function owner() view returns (address)",
+  "function wrap(address _to, uint256 _amount) external", // Only owner can call
+  "function unwrap(address _to, uint256 _amount) external",
+  "function mint(uint256 _amount) external", // Only owner can call
+  "function burn(uint256 _amount) external", // Only owner can call
+  "function release(address _to, uint256 _amount) external" // Only owner can call
+];s and transfer.
 
  Requirements:
    - ALLOW_TEST_SCRIPTS=true
@@ -36,6 +49,21 @@ const ERC20_ABI = [
   "function transfer(address,uint256) returns (bool)",
   "function approve(address,uint256) returns (bool)",
   "function decimals() view returns (uint8)",
+];
+
+// Wrapped USDC ABI (Polymarket's wrapper interface)
+// Wrapped USDC ABI (based on actual contract)
+const WRAPPED_USDC_ABI = [
+  "function wrap(address _to, uint256 _amount) external", // Only owner can call
+  "function unwrap(address _to, uint256 _amount) external",
+  "function balanceOf(address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function transfer(address,uint256) returns (bool)",
+  "function underlying() view returns (address)",
+  "function owner() view returns (address)",
+  "function mint(uint256 _amount) external", // Only owner can call
+  "function burn(uint256 _amount) external", // Only owner can call
+  "function release(address _to, uint256 _amount) external", // Only owner can call
 ];
 
 const CTF_ABI = [
@@ -98,15 +126,17 @@ async function main() {
     throw new Error("MARKET_ID environment variable is required");
   }
   
-  const market = config.getMarketById(targetMarketId);
+  const market = await config.getMarketById(targetMarketId);
   if (!market) {
     throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
   }
   
   const CONDITION_ID = market.conditionId;
+  const COLLATERAL_TOKEN = market.collateralToken; // Use the correct collateral token from market data
   console.log(`Using market: ${market.question}`);
   console.log(`Market ID: ${targetMarketId}`);
   console.log(`Condition ID: ${CONDITION_ID}`);
+  console.log(`Collateral Token: ${COLLATERAL_TOKEN}`);
   
   const chain = await ethers.provider.getNetwork();
   const chainId = Number(chain.chainId);
@@ -118,7 +148,7 @@ async function main() {
 
   const AMOUNT_USDC = TEST.USDC_AMOUNT || "1000"; // default 1000 USDC
 
-  const usdc = new ethers.Contract(USDC, ERC20_ABI, ethers.provider);
+  const collateralContract = new ethers.Contract(COLLATERAL_TOKEN, ERC20_ABI, ethers.provider);
   const ctf = new ethers.Contract(CTF, CTF_ABI, ethers.provider);
 
   const [actor] = await ethers.getSigners();
@@ -128,20 +158,49 @@ async function main() {
 
   const amount = ethers.parseUnits(AMOUNT_USDC, 6);
 
-  // Ensure actor has enough USDC; if not, fund from whale
-  let bal = await usdc.balanceOf(actor.address);
-  console.log(`Actor USDC before: ${ethers.formatUnits(bal, 6)}`);
+  // Ensure actor has enough collateral tokens; if not, fund from whale
+  let bal = await collateralContract.balanceOf(actor.address);
+  console.log(`Actor collateral before: ${ethers.formatUnits(bal, 6)}`);
+  
   if (bal < amount) {
-    console.log(`Funding from USDC whale...`);
-    const whale = await impersonate(USDC_WHALE);
-    await (await usdc.connect(whale).transfer(actor.address, amount - bal)).wait();
-    bal = await usdc.balanceOf(actor.address);
+    if (COLLATERAL_TOKEN === USDC) {
+      // Regular USDC - fund from whale
+      console.log(`Funding from USDC whale...`);
+      const whale = await impersonate(USDC_WHALE);
+      await (await collateralContract.connect(whale).transfer(actor.address, amount - bal)).wait();
+    } else {
+      // Wrapped USDC - use the owner to wrap regular USDC
+      console.log(`Need wrapped USDC, getting from owner...`);
+      const wrappedUsdcOwner = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"; // Provided owner address
+      
+      // First, get regular USDC for the owner
+      const usdcContract = new ethers.Contract(USDC, ERC20_ABI, ethers.provider);
+      const whale = await impersonate(USDC_WHALE);
+      const owner = await impersonate(wrappedUsdcOwner);
+      
+      const neededAmount = amount - bal;
+      console.log(`Need to wrap ${ethers.formatUnits(neededAmount, 6)} USDC`);
+      
+      // Transfer USDC to owner
+      await (await usdcContract.connect(whale).transfer(wrappedUsdcOwner, neededAmount)).wait();
+      
+      // Owner approves wrapped contract to spend USDC
+      await (await usdcContract.connect(owner).approve(COLLATERAL_TOKEN, neededAmount)).wait();
+      
+      // Owner wraps USDC and sends wrapped USDC to actor
+      const wrappedContract = new ethers.Contract(COLLATERAL_TOKEN, WRAPPED_USDC_ABI, ethers.provider);
+      await (await wrappedContract.connect(owner).wrap(actor.address, neededAmount)).wait();
+      
+      console.log(`✅ Successfully wrapped ${ethers.formatUnits(neededAmount, 6)} USDC`);
+    }
+    
+    bal = await collateralContract.balanceOf(actor.address);
   }
-  console.log(`Actor USDC now: ${ethers.formatUnits(bal, 6)}`);
+  console.log(`Actor collateral now: ${ethers.formatUnits(bal, 6)}`);
 
-  // Approve CTF to spend USDC and split into YES/NO
-  console.log(`Approving USDC to CTF and splitting ${AMOUNT_USDC} USDC into YES/NO...`);
-  await (await usdc.connect(actor).approve(CTF, amount)).wait();
+  // Approve CTF to spend collateral and split into YES/NO
+  console.log(`Approving collateral to CTF and splitting ${AMOUNT_USDC} collateral into YES/NO...`);
+  await (await collateralContract.connect(actor).approve(CTF, amount)).wait();
 
   // Set approval for all ERC1155 tokens (required for safeTransferFrom)
   console.log(`Setting approval for all ERC1155 tokens...`);
@@ -150,14 +209,14 @@ async function main() {
   await (
     await ctf
       .connect(actor)
-      .splitPosition(USDC, ethers.ZeroHash, CONDITION_ID, partition, amount)
+      .splitPosition(COLLATERAL_TOKEN, ethers.ZeroHash, CONDITION_ID, partition, amount)
   ).wait();
 
   // Compute YES/NO tokenIds
   const yesCol = await ctf.getCollectionId(ethers.ZeroHash, CONDITION_ID, 1);
   const noCol = await ctf.getCollectionId(ethers.ZeroHash, CONDITION_ID, 2);
-  const yesId = await ctf.getPositionId(USDC, yesCol);
-  const noId = await ctf.getPositionId(USDC, noCol);
+  const yesId = await ctf.getPositionId(COLLATERAL_TOKEN, yesCol);
+  const noId = await ctf.getPositionId(COLLATERAL_TOKEN, noCol);
   console.log(`YES tokenId: ${yesId}`);
   console.log(`NO  tokenId: ${noId}`);
 
