@@ -108,8 +108,13 @@ interface IAToken is IERC20 {
 
 interface IYMReceipt {
     function mint(address to, uint256 id, uint256 amount) external;
+
     function burn(address from, uint256 id, uint256 amount) external;
-    function balanceOf(address account, uint256 id) external view returns (uint256);
+
+    function balanceOf(
+        address account,
+        uint256 id
+    ) external view returns (uint256);
 }
 
 /**
@@ -124,6 +129,7 @@ interface IYMReceipt {
  */
 contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
     constructor() Ownable(msg.sender) {}
+
     // ===== State variables =====
 
     // External contracts (set in initialize)
@@ -132,7 +138,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
     IERC20 public collateralToken; // USDC or WrappedUSDC
     IAToken public aToken; // aUSDC
     IYMReceipt public receipt; // unified ERC1155 for YES.Y/NO.Y
-    
+
     // Wrapped collateral support
     bool public isWrappedCollateral; // True if collateral is wrapped
     IERC20 public underlyingToken; // Underlying USDC if wrapped
@@ -205,7 +211,9 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         receipt = IYMReceipt(_receipt);
 
         // Check if collateral token is wrapped
-        try IWrappedCollateral(_collateralToken).underlying() returns (address underlying) {
+        try IWrappedCollateral(_collateralToken).underlying() returns (
+            address underlying
+        ) {
             // It's a wrapped collateral token
             isWrappedCollateral = true;
             underlyingToken = IERC20(underlying);
@@ -405,12 +413,15 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
             uint256 usdcBalance = collateralToken.balanceOf(address(this));
             if (usdcBalance > 0) {
                 uint256 usdcToSupply;
-                
+
                 if (isWrappedCollateral) {
                     // Unwrap the wrapped collateral to get underlying USDC
-                    IWrappedCollateral(address(collateralToken)).unwrap(address(this), usdcBalance);
+                    IWrappedCollateral(address(collateralToken)).unwrap(
+                        address(this),
+                        usdcBalance
+                    );
                     usdcToSupply = underlyingToken.balanceOf(address(this));
-                    
+
                     // Approve and supply underlying USDC to AAVE
                     underlyingToken.approve(address(aavePool), usdcToSupply);
                     aavePool.supply(
@@ -430,7 +441,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
                         0
                     );
                 }
-                
+
                 totalYielding = totalYielding + usdcToSupply;
 
                 emit PositionsMatched(matchAmount, usdcToSupply);
@@ -479,13 +490,25 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
             // Supply received USDC to AAVE to earn yield
             if (usdcReceived > 0) {
                 uint256 usdcToSupply;
-                
+
                 if (isWrappedCollateral) {
                     // Unwrap the wrapped collateral to get underlying USDC
-                    IWrappedCollateral(address(collateralToken)).unwrap(address(this), usdcReceived);
-                    usdcToSupply = underlyingToken.balanceOf(address(this)) - 
-                                  (totalYielding > 0 ? aavePool.withdraw(address(underlyingToken), type(uint256).max, address(this)) : 0);
-                    
+                    IWrappedCollateral(address(collateralToken)).unwrap(
+                        address(this),
+                        usdcReceived
+                    );
+                    usdcToSupply =
+                        underlyingToken.balanceOf(address(this)) -
+                        (
+                            totalYielding > 0
+                                ? aavePool.withdraw(
+                                    address(underlyingToken),
+                                    type(uint256).max,
+                                    address(this)
+                                )
+                                : 0
+                        );
+
                     // Approve and supply underlying USDC to AAVE
                     underlyingToken.approve(address(aavePool), usdcToSupply);
                     aavePool.supply(
@@ -505,7 +528,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
                         0
                     );
                 }
-                
+
                 totalYielding = totalYielding + usdcToSupply;
             }
         }
@@ -583,7 +606,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
     function estimateWithdrawal(address user) external view returns (uint256) {
         bool result; // true if YES won, false if NO won
         if (!isResolved) {
-             uint256 yesPayoutNumerator = conditionalTokens.payoutNumerators(
+            uint256 yesPayoutNumerator = conditionalTokens.payoutNumerators(
                 conditionId,
                 0
             );
@@ -595,7 +618,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
                 conditionId
             );
 
-            if (payoutDenominator ==0) {
+            if (payoutDenominator == 0) {
                 return 0; // Market not resolved on Polymarket
             }
 
@@ -618,7 +641,6 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         }
 
         return 0;
-       
     }
 
     // ===== ERC1155 Receiver implementation =====
