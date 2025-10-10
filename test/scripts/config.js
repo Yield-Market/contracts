@@ -4,6 +4,12 @@
 require('dotenv').config();
 const fs = require("fs");
 const path = require("path");
+const { ethers } = require("hardhat");
+
+// CTF ABI for querying events
+const CTF_ABI = [
+  "event PositionSplit(address indexed stakeholder, address collateralToken, bytes32 indexed parentCollectionId, bytes32 indexed conditionId, uint[] partition, uint amount)"
+];
 
 // Function to load markets from markets.json
 function loadMarketsFromJson() {
@@ -17,14 +23,42 @@ function loadMarketsFromJson() {
   }
 }
 
+// Get the correct collateral token by querying CTF PositionSplit events
+async function getCollateralTokenFromEvents(conditionId) {
+  try {
+    const CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"; // Polygon CTF
+    const ctf = new ethers.Contract(CTF_ADDRESS, CTF_ABI, ethers.provider);
+    
+    // Query PositionSplit events for this condition
+    const filter = ctf.filters.PositionSplit(null, null, null, conditionId);
+    const events = await ctf.queryFilter(filter, 0, "latest");
+    
+    if (events.length > 0) {
+      // Use collateral token from the first PositionSplit event
+      const collateralToken = events[0].args.collateralToken;
+      console.log(`Found collateral token for condition ${conditionId}: ${collateralToken}`);
+      return collateralToken;
+    } else {
+      console.log(`No PositionSplit events found for condition ${conditionId}, using default USDC`);
+      return "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // Default to USDC
+    }
+  } catch (error) {
+    console.error(`Error querying collateral token for ${conditionId}:`, error.message);
+    return "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // Fallback to USDC
+  }
+}
+
 // Transform markets.json data to match expected format for deployment scripts
-function transformMarketData(market) {
+// Note: This function is now async due to event querying
+async function transformMarketData(market) {
+  const collateralToken = await getCollateralTokenFromEvents(market.condition_id);
+  
   return {
     id: market.id,
     conditionId: market.condition_id,
     questionId: market.question_id,
-    // Use the actual collateral token from CTF events (could be wrapped USDC)
-    collateralToken: getCollateralTokenForMarket(market.condition_id),
+    // Use the actual collateral token from CTF events
+    collateralToken: collateralToken,
     ymVaultAddress: market.vault_address || "0x0000000000000000000000000000000000000000",
     // Use position IDs from markets.json (these are the correct CTF position IDs)
     yesPositionId: market.clob_token_id_yes,
@@ -40,17 +74,7 @@ function transformMarketData(market) {
   };
 }
 
-// Get the correct collateral token for a market by checking known mappings
-function getCollateralTokenForMarket(conditionId) {
-  // Known wrapped collateral tokens for specific conditions
-  const wrappedCollateralMapping = {
-    "0xc432af9280482e26f71cb60e0f6f73b302cecb95371e1b076b99da1daa240211": "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2", // Wrapped USDC
-    // Add more mappings as needed
-  };
-  
-  // Return wrapped collateral if mapped, otherwise default to USDC
-  return wrappedCollateralMapping[conditionId] || "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-}
+// Get the correct collateral token by querying CTF PositionSplit events
 
 module.exports = {
   // Polygon mainnet addresses (used on forks)
@@ -131,15 +155,22 @@ module.exports = {
   // },
   
   // Load markets from markets.json and get all markets or specific market
-  getAllMarkets: function() {
+  getAllMarkets: async function() {
     const rawMarkets = loadMarketsFromJson();
-    return rawMarkets.map(transformMarketData);
+    const transformedMarkets = [];
+    
+    for (const market of rawMarkets) {
+      const transformed = await transformMarketData(market);
+      transformedMarkets.push(transformed);
+    }
+    
+    return transformedMarkets;
   },
   
-  getMarketById: function(marketId) {
+  getMarketById: async function(marketId) {
     const rawMarkets = loadMarketsFromJson();
     const market = rawMarkets.find(m => m.id === marketId);
-    return market ? transformMarketData(market) : null;
+    return market ? await transformMarketData(market) : null;
   },
   
   // For backward compatibility, you can still use MARKET for single market deployment

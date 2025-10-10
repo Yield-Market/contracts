@@ -48,12 +48,12 @@ function assertAddress(name, value) {
   }
 }
 
-function loadMarkets() {
+async function loadMarkets() {
   // Check if specific market ID is provided via environment variable
   const targetMarketId = process.env.MARKET_ID;
   
   if (targetMarketId) {
-    const market = config.getMarketById(targetMarketId);
+    const market = await config.getMarketById(targetMarketId);
     if (!market) {
       throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
     }
@@ -61,7 +61,7 @@ function loadMarkets() {
     return { raw: null, json: [market] };
   } else {
     // Deploy for all markets
-    const markets = config.getAllMarkets();
+    const markets = await config.getAllMarkets();
     console.log(`Deploying for ${markets.length} markets from markets.json`);
     return { raw: null, json: markets };
   }
@@ -95,7 +95,7 @@ async function main() {
   const aToken = POLYGON_AUSDC;
   assertAddress("ConditionalTokens (CTF)", ctf);
 
-  const { raw: rawMarkets, json: markets } = loadMarkets();
+  const { raw: rawMarkets, json: markets } = await loadMarkets();
 
   // Use private key if configured, otherwise use default signer
   let deployer;
