@@ -92,8 +92,8 @@ module.exports = {
   // Test config (set to string addresses or values as needed)
   TEST: {
     USDC_RECEIVER: null,     // if null, first local signer will be used
-    YES_RECEIVER: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",      // if null, first local signer will be used
-    NO_RECEIVER: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",       // if null, first local signer will be used
+    YES_RECEIVER: "0xD2e818b5d645742B2ffE671F0ABBDEe1478464BF",      // if null, first local signer will be used
+    NO_RECEIVER: "0xD2e818b5d645742B2ffE671F0ABBDEe1478464BF",       // if null, first local signer will be used
     USDC_AMOUNT: "100",    // default USDC amount for scripts
 
     // Defaults for send_position_token.js

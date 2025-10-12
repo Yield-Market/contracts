@@ -38,7 +38,7 @@ async function main() {
     throw new Error("MARKET_ID environment variable is required");
   }
   
-  const market = config.getMarketById(targetMarketId);
+  const market = await config.getMarketById(targetMarketId);
   if (!market) {
     throw new Error(`Market with ID ${targetMarketId} not found in markets.json`);
   }
