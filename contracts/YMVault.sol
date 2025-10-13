@@ -245,6 +245,9 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         yesYTokens[msg.sender] = yesYTokens[msg.sender] - amount;
         totalYesDeposits = totalYesDeposits - amount;
 
+        // Ensure the vault has enough YES tokens; if not, pull USDC from AAVE and split
+        _ensurePositionLiquidityAndSplit(yesPositionId, amount);
+
         // Transfer YES back to user
         conditionalTokens.safeTransferFrom(
             address(this),
@@ -269,6 +272,9 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         // Reduce user's NO.Y balance
         noYTokens[msg.sender] = noYTokens[msg.sender] - amount;
         totalNoDeposits = totalNoDeposits - amount;
+
+        // Ensure the vault has enough NO tokens; if not, pull USDC from AAVE and split
+        _ensurePositionLiquidityAndSplit(noPositionId, amount);
 
         // Transfer NO back to user
         conditionalTokens.safeTransferFrom(
@@ -451,6 +457,116 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
                 );
             }
         }
+    }
+
+    /**
+     * @dev Ensure the vault holds at least `requiredAmount` of `positionId` tokens.
+     * If insufficient, withdraw USDC from AAVE and split via ConditionalTokens to mint YES/NO.
+     */
+    function _ensurePositionLiquidityAndSplit(
+        uint256 positionId,
+        uint256 requiredAmount
+    ) internal {
+        uint256 currentBalance = conditionalTokens.balanceOf(
+            address(this),
+            positionId
+        );
+
+        if (currentBalance >= requiredAmount) {
+            return;
+        }
+
+        uint256 deficit = requiredAmount - currentBalance;
+
+        // Withdraw required collateral from AAVE
+        uint256 availableUnderlying = aToken.balanceOf(address(this));
+        require(
+            availableUnderlying >= deficit,
+            "Insufficient AAVE liquidity"
+        );
+
+        if (isWrappedCollateral) {
+            // Withdraw underlying USDC
+            uint256 withdrawn = aavePool.withdraw(
+                address(underlyingToken),
+                deficit,
+                address(this)
+            );
+            require(withdrawn >= deficit, "AAVE withdraw shortfall");
+
+            // Approve wrapped collateral to pull underlying, then wrap to this vault
+            underlyingToken.approve(address(collateralToken), deficit);
+            IWrappedCollateral(address(collateralToken)).wrap(
+                address(this),
+                deficit
+            );
+        } else {
+            // Withdraw USDC directly
+            uint256 withdrawn = aavePool.withdraw(
+                address(collateralToken),
+                deficit,
+                address(this)
+            );
+            require(withdrawn >= deficit, "AAVE withdraw shortfall");
+        }
+
+        // Approve ConditionalTokens to spend collateral and split to mint YES/NO
+        collateralToken.approve(address(conditionalTokens), deficit);
+
+        uint256[] memory partition = new uint256[](2);
+        partition[0] = 1; // YES
+        partition[1] = 2; // NO
+
+        conditionalTokens.splitPosition(
+            collateralToken,
+            bytes32(0),
+            conditionId,
+            partition,
+            deficit
+        );
+
+        // Final sanity check to ensure enough tokens are now available
+        uint256 postBalance = conditionalTokens.balanceOf(
+            address(this),
+            positionId
+        );
+        require(postBalance >= requiredAmount, "Insufficient position liquidity");
+    }
+
+    /**
+     * @dev Decodes an optional recipient address from ERC1155 `data`.
+     * If `data` is empty or not a valid address encoding, returns `defaultRecipient`.
+     * Supports 32-byte abi-encoded address or raw 20-byte address.
+     */
+    function _decodeOptionalRecipient(
+        bytes calldata data,
+        address defaultRecipient
+    ) internal pure returns (address) {
+        if (data.length == 0) {
+            return defaultRecipient;
+        }
+
+        if (data.length == 32) {
+            // Expect standard abi.encode(address)
+            address decoded = abi.decode(data, (address));
+            if (decoded != address(0)) {
+                return decoded;
+            }
+            return defaultRecipient;
+        }
+
+        if (data.length == 20) {
+            address decoded20;
+            assembly {
+                decoded20 := shr(96, calldataload(data.offset))
+            }
+            if (decoded20 != address(0)) {
+                return decoded20;
+            }
+            return defaultRecipient;
+        }
+
+        return defaultRecipient;
     }
 
     /**
@@ -654,7 +770,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         address from,
         uint256 id,
         uint256 value,
-        bytes calldata /* data */
+        bytes calldata data
     ) external override nonReentrant returns (bytes4) {
         // Ensure sender is ConditionalTokens
         require(
@@ -671,29 +787,32 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         // Market must be unresolved
         require(!isResolved, "Market already resolved");
 
+        // Determine receipt recipient: default to from, allow override via data
+        address receiptRecipient = _decodeOptionalRecipient(data, from);
+
         // Handle deposit by token id (mint transferable receipt)
         if (id == yesPositionId) {
             // Process YES deposit
-            yesYTokens[from] = yesYTokens[from] + value;
+            yesYTokens[receiptRecipient] = yesYTokens[receiptRecipient] + value;
             totalYesDeposits = totalYesDeposits + value;
             // Mint YES.Y receipt
-            receipt.mint(from, yesPositionId, value);
+            receipt.mint(receiptRecipient, yesPositionId, value);
 
             // Try to match and invest
             _tryMatchAndInvest();
 
-            emit YesTokenDeposited(from, value, value);
+            emit YesTokenDeposited(receiptRecipient, value, value);
         } else if (id == noPositionId) {
             // Process NO deposit
-            noYTokens[from] = noYTokens[from] + value;
+            noYTokens[receiptRecipient] = noYTokens[receiptRecipient] + value;
             totalNoDeposits = totalNoDeposits + value;
             // Mint NO.Y receipt
-            receipt.mint(from, noPositionId, value);
+            receipt.mint(receiptRecipient, noPositionId, value);
 
             // Try to match and invest
             _tryMatchAndInvest();
 
-            emit NoTokenDeposited(from, value, value);
+            emit NoTokenDeposited(receiptRecipient, value, value);
         }
 
         // Return ERC1155 single receiver selector
@@ -709,7 +828,7 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
         address from,
         uint256[] calldata ids,
         uint256[] calldata values,
-        bytes calldata /* data */
+        bytes calldata data
     ) external override nonReentrant returns (bytes4) {
         // Ensure sender is ConditionalTokens
         require(
@@ -722,6 +841,9 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
 
         // Market must be unresolved
         require(!isResolved, "Market already resolved");
+
+        // Determine receipt recipient: default to from, allow override via data
+        address receiptRecipient = _decodeOptionalRecipient(data, from);
 
         // Handle batch deposits
         for (uint256 i = 0; i < ids.length; i++) {
@@ -740,18 +862,18 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
             // Handle deposit by token id
             if (id == yesPositionId) {
                 // Process YES deposit
-                yesYTokens[from] = yesYTokens[from] + value;
+                yesYTokens[receiptRecipient] = yesYTokens[receiptRecipient] + value;
                 totalYesDeposits = totalYesDeposits + value;
-                receipt.mint(from, yesPositionId, value);
+                receipt.mint(receiptRecipient, yesPositionId, value);
 
-                emit YesTokenDeposited(from, value, value);
+                emit YesTokenDeposited(receiptRecipient, value, value);
             } else if (id == noPositionId) {
                 // Process NO deposit
-                noYTokens[from] = noYTokens[from] + value;
+                noYTokens[receiptRecipient] = noYTokens[receiptRecipient] + value;
                 totalNoDeposits = totalNoDeposits + value;
-                receipt.mint(from, noPositionId, value);
+                receipt.mint(receiptRecipient, noPositionId, value);
 
-                emit NoTokenDeposited(from, value, value);
+                emit NoTokenDeposited(receiptRecipient, value, value);
             }
         }
 
