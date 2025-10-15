@@ -119,6 +119,23 @@ async function main() {
   const collateralContract = new ethers.Contract(COLLATERAL_TOKEN, ERC20_ABI, ethers.provider);
   const ctf = new ethers.Contract(CTF, CONDITIONAL_TOKENS_ABI, ethers.provider);
   
+  // Check if using wrapped collateral and get underlying token
+  let underlyingContract = null;
+  let isWrappedCollateral = false;
+  try {
+    const wrappedContract = new ethers.Contract(COLLATERAL_TOKEN, WRAPPED_USDC_ABI, ethers.provider);
+    const underlyingAddress = await wrappedContract.underlying();
+    underlyingContract = new ethers.Contract(underlyingAddress, ERC20_ABI, ethers.provider);
+    isWrappedCollateral = true;
+    console.log(`\n🔧 Wrapped Collateral Detected:`);
+    console.log(`- Collateral Token: ${COLLATERAL_TOKEN}`);
+    console.log(`- Underlying Token: ${underlyingAddress}`);
+  } catch (e) {
+    // Not wrapped collateral, use collateral token directly
+    underlyingContract = collateralContract;
+    console.log(`\n🔧 Regular Collateral Token: ${COLLATERAL_TOKEN}`);
+  }
+  
   // Check if market is resolved (informational only - withdraw will auto-resolve if needed)
   const isResolved = await vault.isResolved();
   console.log(`\n🔍 Market Resolution Status: ${isResolved}`);
@@ -215,9 +232,15 @@ async function main() {
       // Don't skip - let withdraw handle the resolution and determination
     }
     
-    // Check user's current USDC balance before withdrawal
-    const usdcBalanceBefore = await collateralContract.balanceOf(address);
-    console.log(`USDC Balance Before: ${ethers.formatUnits(usdcBalanceBefore, 6)}`);
+    // Check user's current balances before withdrawal (both collateral and underlying)
+    const collateralBalanceBefore = await collateralContract.balanceOf(address);
+    const underlyingBalanceBefore = await underlyingContract.balanceOf(address);
+    
+    console.log(`Balances Before Withdrawal:`);
+    console.log(`- Collateral Token: ${ethers.formatUnits(collateralBalanceBefore, 6)}`);
+    if (isWrappedCollateral) {
+      console.log(`- Underlying USDC: ${ethers.formatUnits(underlyingBalanceBefore, 6)}`);
+    }
     
     // Impersonate the user to perform withdrawal
     const userSigner = await impersonate(address);
@@ -263,15 +286,28 @@ async function main() {
         console.log(`⚠️  Failed to capture withdrawal event: ${eventError.message}`);
       }
       
-      // Check balances after withdrawal
-      const usdcBalanceAfter = await collateralContract.balanceOf(address);
-      const usdcReceived = usdcBalanceAfter - usdcBalanceBefore;
+      // Check balances after withdrawal (both collateral and underlying)
+      const collateralBalanceAfter = await collateralContract.balanceOf(address);
+      const underlyingBalanceAfter = await underlyingContract.balanceOf(address);
+      
+      const collateralReceived = collateralBalanceAfter - collateralBalanceBefore;
+      const underlyingReceived = underlyingBalanceAfter - underlyingBalanceBefore;
       
       console.log(`\n💰 Withdrawal Results:`);
-      console.log(`- USDC Balance Before: ${ethers.formatUnits(usdcBalanceBefore, 6)}`);
-      console.log(`- USDC Balance After: ${ethers.formatUnits(usdcBalanceAfter, 6)}`);
-      console.log(`- USDC Received: ${ethers.formatUnits(usdcReceived, 6)}`);
-      console.log(`- Estimated vs Actual: ${ethers.formatUnits(estimatedWithdrawal, 6)} vs ${ethers.formatUnits(usdcReceived, 6)}`);
+      console.log(`- Collateral Balance Before: ${ethers.formatUnits(collateralBalanceBefore, 6)}`);
+      console.log(`- Collateral Balance After: ${ethers.formatUnits(collateralBalanceAfter, 6)}`);
+      console.log(`- Collateral Received: ${ethers.formatUnits(collateralReceived, 6)}`);
+      
+      if (isWrappedCollateral) {
+        console.log(`- Underlying Balance Before: ${ethers.formatUnits(underlyingBalanceBefore, 6)}`);
+        console.log(`- Underlying Balance After: ${ethers.formatUnits(underlyingBalanceAfter, 6)}`);
+        console.log(`- Underlying USDC Received: ${ethers.formatUnits(underlyingReceived, 6)}`);
+      }
+      
+      // Calculate total value received (for wrapped collateral, user gets underlying USDC)
+      const totalUsdcReceived = isWrappedCollateral ? underlyingReceived : collateralReceived;
+      console.log(`- Total USDC Value Received: ${ethers.formatUnits(totalUsdcReceived, 6)}`);
+      console.log(`- Estimated vs Actual: ${ethers.formatUnits(estimatedWithdrawal, 6)} vs ${ethers.formatUnits(totalUsdcReceived, 6)}`);
       
       // Verify vault balances are zeroed
       const userYesYAfter = await vault.getYesYBalance(address);
@@ -302,7 +338,7 @@ async function main() {
           ethers.formatUnits(userNoY, 6);
       }
       
-      const actualReceived = ethers.formatUnits(usdcReceived, 6);
+      const actualReceived = ethers.formatUnits(totalUsdcReceived, 6);
       const yieldEarned = parseFloat(actualReceived) - parseFloat(expectedPrincipal);
       
       console.log(`\n📊 Yield Analysis:`);
@@ -313,8 +349,10 @@ async function main() {
         
         if (yieldEarned > 0) {
           console.log(`🎉 User earned ${yieldEarned.toFixed(6)} USDC in yield!`);
-        } else if (yieldEarned < 0) {
-          console.log(`⚠️  User received less than principal (possible fees or rounding)`);
+        } else if (yieldEarned < -0.001) { // Allow for small rounding errors
+          console.log(`⚠️  User received significantly less than principal: ${yieldEarned.toFixed(6)} USDC difference`);
+        } else if (Math.abs(yieldEarned) <= 0.001) {
+          console.log(`💭 No significant yield earned (within rounding tolerance)`);
         } else {
           console.log(`💭 No additional yield earned`);
         }
