@@ -326,12 +326,24 @@ contract YMVault is ReentrancyGuard, Ownable, IERC1155Receiver {
             if (usdcToWithdraw > availableUnderlying) {
                 usdcToWithdraw = availableUnderlying;
             }
-            // Withdraw USDC from AAVE directly to user
-            usdcReceived = aavePool.withdraw(
-                address(collateralToken), // USDC address
-                usdcToWithdraw, // USDC amount to withdraw
-                to
-            );
+            
+            // Withdraw from AAVE: use appropriate asset based on collateral type
+            if (isWrappedCollateral) {
+                // For wrapped collateral: withdraw underlying USDC from AAVE directly to user
+                // Note: This gives user underlying USDC instead of wrapped version
+                usdcReceived = aavePool.withdraw(
+                    address(underlyingToken), // underlying USDC address
+                    usdcToWithdraw,
+                    to // send underlying USDC directly to user
+                );
+            } else {
+                // For regular USDC: withdraw directly to user
+                usdcReceived = aavePool.withdraw(
+                    address(collateralToken), // USDC address
+                    usdcToWithdraw,
+                    to
+                );
+            }
 
             // Check withdraw result
             require(usdcReceived > 0, "AAVE withdraw failed");
